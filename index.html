@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Case Tracker</title>
+  <title>NY CPL 30.30 Tracker (PD Edition)</title>
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -279,7 +279,11 @@
 </head>
 <body>
   <div class="app-container">
-    <h1>Case Tracker</h1>
+    <h1>NY CPL 30.30 Tracker</h1>
+    <p class="small-text">
+      For internal tracking only – you still make the legal call on what's chargeable/excludable.
+      Felonies use 6 calendar months; misds/violations use 90/60/30 calendar days, with deadlines bumped off weekends.
+    </p>
 
     <!-- Local encrypted backup + Supabase sync (beta) -->
     <div class="backup-bar">
@@ -344,10 +348,18 @@
           <div class="field">
             <label for="excludedDays">Excluded Days (simple total)</label>
             <input id="excludedDays" type="number" min="0" value="0">
-            <div class="small-text">Adjournments / periods not chargeable to People. Use advanced breakdown if you want more detail.</div>
+            <div class="small-text">
+              Adjournments / periods not chargeable to People. If you turn on Advanced, this must equal definitely + arguably excludable.
+            </div>
+            <label style="margin-top:0.25rem;font-weight:400;font-size:0.8rem;">
+              <input type="checkbox" id="advancedMainToggle">
+              Advanced excludable breakdown
+            </label>
+            <div class="small-text" id="mainExclError" style="color:#b91c1c;"></div>
           </div>
-          <div class="field">
-            <label>Advanced excludable breakdown (optional)</label>
+
+          <div class="field" id="advancedMainSection" style="display:none;">
+            <label>Advanced excludable breakdown</label>
             <div class="form-row" style="gap:0.5rem; margin-bottom:0;">
               <div class="field">
                 <label for="definitelyExcludedDays" style="font-size:0.75rem;">Definitely excludable days</label>
@@ -358,8 +370,11 @@
                 <input id="arguablyExcludedDays" type="number" min="0" value="0">
               </div>
             </div>
-            <div class="small-text">If you use these, the Excluded/Chargeable columns follow the global mode below.</div>
+            <div class="small-text">
+              When Advanced is on, simple excluded should equal definitely + arguably; otherwise you'll get an error.
+            </div>
           </div>
+
           <div class="field" style="align-self:flex-end;">
             <label>
               <input type="checkbox" id="clockStopped">
@@ -428,7 +443,8 @@
       </tbody>
     </table>
     <p class="small-text">
-      Local storage + encrypted backups only for sensitive information. 
+      LocalStorage + encrypted backups are where you should store real client names.
+      Supabase sync is a beta cloud mirror: keep identifiers anonymized until IT blesses it.
       Weekends are auto-adjusted; holidays are not yet coded.
       Click any row to open full case details (Assigned ADA, excludable breakdown, notes, warrant/closed flags, etc.).
     </p>
@@ -471,10 +487,18 @@
         <div class="field">
           <label for="modalExcludedDays">Excluded Days (simple)</label>
           <input id="modalExcludedDays" type="number" min="0">
+          <div class="small-text">
+            When Advanced is on, this must equal definitely + arguably excludable.
+          </div>
+          <label style="margin-top:0.25rem;font-weight:400;font-size:0.8rem;">
+            <input type="checkbox" id="modalAdvancedToggle">
+            Advanced excludable breakdown
+          </label>
+          <div class="small-text" id="modalExclError" style="color:#b91c1c;"></div>
         </div>
       </div>
 
-      <div class="form-row">
+      <div class="form-row" id="modalAdvancedSection" style="display:none;">
         <div class="field">
           <label for="modalDefExcluded">Definitely excludable days</label>
           <input id="modalDefExcluded" type="number" min="0">
@@ -846,6 +870,12 @@
       document.getElementById('modalWarrant').checked = !!c.warrant;
       document.getElementById('modalClosed').checked = !!c.closed;
 
+      // advanced toggle in modal: auto-on if there is data
+      const hasAdvanced = (Number(c.definitelyExcludedDays) || 0) || (Number(c.arguablyExcludedDays) || 0);
+      modalAdvancedToggle.checked = !!hasAdvanced;
+      modalAdvancedSection.style.display = hasAdvanced ? 'flex' : 'none';
+      modalExclError.textContent = '';
+
       document.getElementById('modalNoteDate').value = '';
       document.getElementById('modalNoteText').value = '';
 
@@ -908,14 +938,34 @@
 
       const c = cases[idx];
 
-      // update basic fields first
+      const simpleExcluded = document.getElementById('modalExcludedDays').value || "0";
+      const defExcluded = document.getElementById('modalDefExcluded').value || "0";
+      const argExcluded = document.getElementById('modalArgExcluded').value || "0";
+      const advancedOn = modalAdvancedToggle.checked;
+
+      modalExclError.textContent = '';
+
+      if (advancedOn) {
+        const simple = Number(simpleExcluded) || 0;
+        const def = Number(defExcluded) || 0;
+        const arg = Number(argExcluded) || 0;
+        if (simple !== def + arg) {
+          modalExclError.textContent = 'Excluded days must equal definitely + arguably excludable when Advanced is on.';
+          alert('Excluded days must equal definitely + arguably excludable when Advanced is on.');
+          return;
+        }
+      }
+
+      // update basic fields
       c.clientName = document.getElementById('modalClientName').value.trim();
       c.docketNumber = document.getElementById('modalDocketNumber').value.trim();
       c.chargeLevel = document.getElementById('modalChargeLevel').value;
       c.startDate = document.getElementById('modalStartDate').value;
-      c.excludedDays = document.getElementById('modalExcludedDays').value || "0";
-      c.definitelyExcludedDays = document.getElementById('modalDefExcluded').value || "0";
-      c.arguablyExcludedDays = document.getElementById('modalArgExcluded').value || "0";
+
+      c.excludedDays = simpleExcluded;
+      c.definitelyExcludedDays = defExcluded;
+      c.arguablyExcludedDays = argExcluded;
+
       c.nextCourtDate = document.getElementById('modalNcd').value;
       c.courtPart = document.getElementById('modalPart').value.trim();
       c.assignedAda = document.getElementById('modalAda').value.trim();
@@ -923,7 +973,6 @@
       const newClockStopped = document.getElementById('modalClockStopped').checked;
       const wasStopped = c.clockStopped;
 
-      // freeze or unfreeze clock
       if (!wasStopped && newClockStopped) {
         c.frozenTotalDays = daysBetween(c.startDate);
       } else if (wasStopped && !newClockStopped) {
@@ -1163,6 +1212,26 @@
       }
     }
 
+    // --- Advanced toggles wiring ---
+
+    const advancedMainToggle = document.getElementById('advancedMainToggle');
+    const advancedMainSection = document.getElementById('advancedMainSection');
+    const mainExclError = document.getElementById('mainExclError');
+
+    advancedMainToggle.addEventListener('change', () => {
+      advancedMainSection.style.display = advancedMainToggle.checked ? 'block' : 'none';
+      mainExclError.textContent = '';
+    });
+
+    const modalAdvancedToggle = document.getElementById('modalAdvancedToggle');
+    const modalAdvancedSection = document.getElementById('modalAdvancedSection');
+    const modalExclError = document.getElementById('modalExclError');
+
+    modalAdvancedToggle.addEventListener('change', () => {
+      modalAdvancedSection.style.display = modalAdvancedToggle.checked ? 'flex' : 'none';
+      modalExclError.textContent = '';
+    });
+
     // --- Form / events ---
 
     document.getElementById('case-form').addEventListener('submit', function(e) {
@@ -1179,9 +1248,24 @@
       const clockStopped = document.getElementById('clockStopped').checked;
       const editingId = document.getElementById('editingId').value;
 
+      const advancedMainOn = advancedMainToggle.checked;
+      mainExclError.textContent = '';
+
       if (!clientName || !chargeLevel || !startDate) {
         alert('Client name, charge level, and start date are required.');
         return;
+      }
+
+      if (advancedMainOn) {
+        const simple = Number(excludedDays) || 0;
+        const def = Number(definitelyExcludedDays) || 0;
+        const arg = Number(arguablyExcludedDays) || 0;
+
+        if (simple !== def + arg) {
+          mainExclError.textContent = 'Excluded days must equal definitely + arguably excludable when Advanced is on.';
+          alert('Excluded days must equal definitely + arguably excludable when Advanced is on.');
+          return;
+        }
       }
 
       const cases = loadCases();
@@ -1246,6 +1330,9 @@
       document.getElementById('excludedDays').value = "0";
       document.getElementById('definitelyExcludedDays').value = "0";
       document.getElementById('arguablyExcludedDays').value = "0";
+      advancedMainToggle.checked = false;
+      advancedMainSection.style.display = 'none';
+      mainExclError.textContent = '';
 
       renderCases();
     });
