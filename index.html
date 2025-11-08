@@ -624,12 +624,13 @@
       }
 
       try {
-        setCloudStatus('Saving to Supabase...');
-        // wipe existing rows in this table (since this is just you for now)
-        const { error: delError } = await supabaseClient
-          .from('cases')
-          .delete()
-          .neq('id', 0); // delete all rows
+            setCloudStatus('Saving to Supabase...');
+    // wipe existing rows in this table (since this is just you for now)
+    const { error: delError } = await supabaseClient
+      .from('cases')
+      .delete()
+      .not('id', 'is', null); // delete all rows with a non-null id (i.e., all real rows)
+
 
         if (delError) {
           console.error(delError);
