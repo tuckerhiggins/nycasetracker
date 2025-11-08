@@ -111,7 +111,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 0.75rem;
-      align-items: center;
+      align-items: flex-start;
       margin-bottom: 1rem;
       padding: 0.75rem;
       border-radius: 8px;
@@ -128,6 +128,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
+      align-items: center;
     }
 
     .filters-row {
@@ -287,6 +288,7 @@
 
     <!-- Local encrypted backup + Supabase sync (beta) -->
     <div class="backup-bar">
+      <!-- Local encrypted backup controls -->
       <div class="field-inline">
         <label for="backupPassword">Backup password (for encrypted export/import)</label>
         <input id="backupPassword" type="password" placeholder="Set a password you'll remember">
@@ -294,26 +296,32 @@
           Used only to encrypt/decrypt backups you move between computers. Keep it safe; if you forget it, backups can't be opened.
         </div>
       </div>
+
+      <!-- Cloud login / status -->
+      <div class="field-inline">
+        <label>Cloud (Supabase Auth)</label>
+        <div id="cloudLoginForm">
+          <input id="cloudEmail" type="email" placeholder="email@example.com" style="margin-bottom:0.3rem;">
+          <input id="cloudPassword" type="password" placeholder="Password (testing users)" style="margin-bottom:0.4rem;">
+          <div class="backup-buttons">
+            <button id="cloudSignUp" class="secondary">Sign up</button>
+            <button id="cloudSignIn" class="secondary">Sign in</button>
+          </div>
+        </div>
+        <div id="cloudSignedInRow" class="backup-buttons" style="display:none; margin-top:0.4rem;">
+          <span class="small-text" id="cloudUserStatus"></span>
+          <button id="cloudSignOut" class="secondary">Sign out</button>
+        </div>
+      </div>
+
+      <!-- Backup + cloud save buttons -->
       <div class="backup-buttons">
         <button id="exportBtn" class="secondary">Export Encrypted Backup</button>
         <button id="importBtn" class="secondary">Import Encrypted Backup</button>
-        <button id="cloudSaveBtn" class="secondary">Save to Supabase (beta)</button>
-        <button id="cloudLoadBtn" class="secondary">Load from Supabase (beta)</button>
+        <button id="cloudSaveBtn" class="secondary">Save to Cloud</button>
         <input id="importFile" type="file" accept=".txt,.json" style="display:none;">
       </div>
 
-      <div class="field-inline">
-        <label>Cloud login (Supabase Auth)</label>
-        <input id="cloudEmail" type="email" placeholder="email@example.com" style="margin-bottom:0.3rem;">
-        <input id="cloudPassword" type="password" placeholder="Password (testing users)" style="margin-bottom:0.4rem;">
-        <div class="backup-buttons">
-          <button id="cloudSignUp" class="secondary">Sign up</button>
-          <button id="cloudSignIn" class="secondary">Sign in</button>
-          <button id="cloudSignOut" class="secondary">Sign out</button>
-        </div>
-        <div class="small-text" id="cloudUserStatus"></div>
-      </div>
-      
       <div class="small-text" id="backupStatus"></div>
       <div class="small-text" id="cloudStatus"></div>
     </div>
@@ -362,17 +370,11 @@
             <label for="excludedDays">Excluded Days (simple total)</label>
             <input id="excludedDays" type="number" min="0" value="0">
             <div class="small-text">
-              Adjournments / periods not chargeable to People. If you turn on Advanced, this must equal definitely + arguably excludable.
+              Adjournments / periods not chargeable to People. Use advanced breakdown if you want more detail.
             </div>
-            <label style="margin-top:0.25rem;font-weight:400;font-size:0.8rem;">
-              <input type="checkbox" id="advancedMainToggle">
-              Advanced excludable breakdown
-            </label>
-            <div class="small-text" id="mainExclError" style="color:#b91c1c;"></div>
           </div>
-
-          <div class="field" id="advancedMainSection" style="display:none;">
-            <label>Advanced excludable breakdown</label>
+          <div class="field">
+            <label>Advanced excludable breakdown (optional)</label>
             <div class="form-row" style="gap:0.5rem; margin-bottom:0;">
               <div class="field">
                 <label for="definitelyExcludedDays" style="font-size:0.75rem;">Definitely excludable days</label>
@@ -384,10 +386,9 @@
               </div>
             </div>
             <div class="small-text">
-              When Advanced is on, simple excluded should equal definitely + arguably; otherwise you'll get an error.
+              If you use these, the Excluded/Chargeable columns follow the global mode below.
             </div>
           </div>
-
           <div class="field" style="align-self:flex-end;">
             <label>
               <input type="checkbox" id="clockStopped">
@@ -500,18 +501,10 @@
         <div class="field">
           <label for="modalExcludedDays">Excluded Days (simple)</label>
           <input id="modalExcludedDays" type="number" min="0">
-          <div class="small-text">
-            When Advanced is on, this must equal definitely + arguably excludable.
-          </div>
-          <label style="margin-top:0.25rem;font-weight:400;font-size:0.8rem;">
-            <input type="checkbox" id="modalAdvancedToggle">
-            Advanced excludable breakdown
-          </label>
-          <div class="small-text" id="modalExclError" style="color:#b91c1c;"></div>
         </div>
       </div>
 
-      <div class="form-row" id="modalAdvancedSection" style="display:none;">
+      <div class="form-row">
         <div class="field">
           <label for="modalDefExcluded">Definitely excludable days</label>
           <input id="modalDefExcluded" type="number" min="0">
@@ -585,27 +578,6 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6a3RveXNrZ3h3YnZzYXV1c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEyNTEsImV4cCI6MjA3ODE3NzI1MX0.paUrNO010jaGoVIzl9ejIAIQr64MsIsVLTXfEQSuzew";
 
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-// --- Auth helpers ---
-
-async function getCurrentUser() {
-  const { data, error } = await supabaseClient.auth.getUser();
-  if (error) {
-    console.error("Error getting current user:", error);
-    return null;
-  }
-  return data.user || null;
-}
-
-async function refreshAuthStatus() {
-  const statusEl = document.getElementById('cloudUserStatus');
-  if (!statusEl) return;
-  const user = await getCurrentUser();
-  if (user) {
-    statusEl.textContent = `Signed in as ${user.email}`;
-  } else {
-    statusEl.textContent = 'Not signed in to cloud.';
-  }
-}
   </script>
 
   <script>
@@ -904,12 +876,6 @@ async function refreshAuthStatus() {
       document.getElementById('modalWarrant').checked = !!c.warrant;
       document.getElementById('modalClosed').checked = !!c.closed;
 
-      // advanced toggle in modal: auto-on if there is data
-      const hasAdvanced = (Number(c.definitelyExcludedDays) || 0) || (Number(c.arguablyExcludedDays) || 0);
-      modalAdvancedToggle.checked = !!hasAdvanced;
-      modalAdvancedSection.style.display = hasAdvanced ? 'flex' : 'none';
-      modalExclError.textContent = '';
-
       document.getElementById('modalNoteDate').value = '';
       document.getElementById('modalNoteText').value = '';
 
@@ -972,34 +938,13 @@ async function refreshAuthStatus() {
 
       const c = cases[idx];
 
-      const simpleExcluded = document.getElementById('modalExcludedDays').value || "0";
-      const defExcluded = document.getElementById('modalDefExcluded').value || "0";
-      const argExcluded = document.getElementById('modalArgExcluded').value || "0";
-      const advancedOn = modalAdvancedToggle.checked;
-
-      modalExclError.textContent = '';
-
-      if (advancedOn) {
-        const simple = Number(simpleExcluded) || 0;
-        const def = Number(defExcluded) || 0;
-        const arg = Number(argExcluded) || 0;
-        if (simple !== def + arg) {
-          modalExclError.textContent = 'Excluded days must equal definitely + arguably excludable when Advanced is on.';
-          alert('Excluded days must equal definitely + arguably excludable when Advanced is on.');
-          return;
-        }
-      }
-
-      // update basic fields
       c.clientName = document.getElementById('modalClientName').value.trim();
       c.docketNumber = document.getElementById('modalDocketNumber').value.trim();
       c.chargeLevel = document.getElementById('modalChargeLevel').value;
       c.startDate = document.getElementById('modalStartDate').value;
-
-      c.excludedDays = simpleExcluded;
-      c.definitelyExcludedDays = defExcluded;
-      c.arguablyExcludedDays = argExcluded;
-
+      c.excludedDays = document.getElementById('modalExcludedDays').value || "0";
+      c.definitelyExcludedDays = document.getElementById('modalDefExcluded').value || "0";
+      c.arguablyExcludedDays = document.getElementById('modalArgExcluded').value || "0";
       c.nextCourtDate = document.getElementById('modalNcd').value;
       c.courtPart = document.getElementById('modalPart').value.trim();
       c.assignedAda = document.getElementById('modalAda').value.trim();
@@ -1120,169 +1065,229 @@ async function refreshAuthStatus() {
       reader.readAsText(file);
     }
 
-    // --- Supabase sync (beta) ---
+    // --- Cloud auth helpers ---
+
+    async function getCurrentUser() {
+      const { data, error } = await supabaseClient.auth.getUser();
+      if (error) {
+        console.error("Error getting current user:", error);
+        return null;
+      }
+      return data.user || null;
+    }
+
+    async function refreshAuthStatus() {
+      const loginForm = document.getElementById('cloudLoginForm');
+      const signedInRow = document.getElementById('cloudSignedInRow');
+      const statusEl = document.getElementById('cloudUserStatus');
+
+      const user = await getCurrentUser();
+
+      if (user) {
+        if (loginForm) loginForm.style.display = 'none';
+        if (signedInRow) signedInRow.style.display = 'flex';
+        if (statusEl) statusEl.textContent = `Signed in as ${user.email}`;
+      } else {
+        if (loginForm) loginForm.style.display = 'block';
+        if (signedInRow) signedInRow.style.display = 'none';
+        if (statusEl) statusEl.textContent = '';
+      }
+    }
 
     function setCloudStatus(msg) {
       document.getElementById('cloudStatus').innerText = msg || '';
     }
 
+    // --- Supabase sync (secure, per-user) ---
+
     async function saveCasesToSupabase() {
-  const user = await getCurrentUser();
-  if (!user) {
-    alert('Sign in to cloud first (email + password) before saving.');
-    return;
-  }
+      const user = await getCurrentUser();
+      if (!user) {
+        alert('Sign in to cloud first (email + password) before saving.');
+        return;
+      }
 
-  const cases = loadCases();
-  if (!confirm(
-    `This will overwrite all rows in Supabase for ${user.email}. Continue?`
-  )) {
-    return;
-  }
+      const cases = loadCases();
+      if (!confirm(
+        `This will overwrite all rows in Supabase for ${user.email}. Continue?`
+      )) {
+        return;
+      }
 
-  try {
-    setCloudStatus('Saving to Supabase...');
+      try {
+        setCloudStatus('Saving to Supabase...');
 
-    // Delete ONLY this user's rows; RLS will also enforce this.
-    const { error: delError } = await supabaseClient
-      .from('cases')
-      .delete()
-      .eq('user_id', user.id);
+        // Delete ONLY this user's rows; RLS also enforces this.
+        const { error: delError } = await supabaseClient
+          .from('cases')
+          .delete()
+          .eq('user_id', user.id);
 
-    if (delError) {
-      console.error(delError);
-      setCloudStatus('Error clearing existing rows in Supabase for this user.');
-      alert('Error clearing Supabase rows for this user. See console.');
-      return;
+        if (delError) {
+          console.error(delError);
+          setCloudStatus('Error clearing existing rows in Supabase for this user.');
+          alert('Error clearing Supabase rows for this user. See console.');
+          return;
+        }
+
+        const payload = cases.map(c => ({
+          user_id: user.id,
+          client_name: c.clientName,
+          docket_number: c.docketNumber,
+          charge_level: c.chargeLevel,
+          start_date: c.startDate || null,
+          excluded_days: Number(c.excludedDays) || 0,
+          notes: c.notes || null,
+          next_court_date: c.nextCourtDate || null,
+          court_part: c.courtPart || null,
+          assigned_ada: c.assignedAda || null,
+          note_entries: c.noteEntries || [],
+          warrant: !!c.warrant,
+          closed: !!c.closed,
+          clock_stopped: !!c.clockStopped,
+          frozen_total_days: c.frozenTotalDays != null ? c.frozenTotalDays : null,
+          definitely_excluded_days: Number(c.definitelyExcludedDays) || 0,
+          arguably_excluded_days: Number(c.arguablyExcludedDays) || 0
+        }));
+
+        if (payload.length === 0) {
+          setCloudStatus(`No local cases to save; Supabase rows for ${user.email} are now cleared.`);
+          alert(`Supabase cleared; no local cases to upload for ${user.email}.`);
+          return;
+        }
+
+        const { error: insError } = await supabaseClient
+          .from('cases')
+          .insert(payload);
+
+        if (insError) {
+          console.error(insError);
+          setCloudStatus('Error saving cases to Supabase.');
+          alert('Error saving cases to Supabase. See console.');
+          return;
+        }
+
+        setCloudStatus(`Saved current cases to Supabase for ${user.email}.`);
+        alert('Saved current cases to Supabase.');
+      } catch (err) {
+        console.error(err);
+        setCloudStatus('Unexpected error talking to Supabase.');
+        alert('Unexpected error talking to Supabase.');
+      }
     }
 
-    const payload = cases.map(c => ({
-      user_id: user.id,  // critical for RLS
-      client_name: c.clientName,
-      docket_number: c.docketNumber,
-      charge_level: c.chargeLevel,
-      start_date: c.startDate || null,
-      excluded_days: Number(c.excludedDays) || 0,
-      notes: c.notes || null,
-      next_court_date: c.nextCourtDate || null,
-      court_part: c.courtPart || null,
-      assigned_ada: c.assignedAda || null,
-      note_entries: c.noteEntries || [],
-      warrant: !!c.warrant,
-      closed: !!c.closed,
-      clock_stopped: !!c.clockStopped,
-      frozen_total_days: c.frozenTotalDays != null ? c.frozenTotalDays : null,
-      definitely_excluded_days: Number(c.definitelyExcludedDays) || 0,
-      arguably_excluded_days: Number(c.arguablyExcludedDays) || 0
-    }));
+    async function loadCasesFromSupabase(silent = false) {
+      const user = await getCurrentUser();
+      if (!user) {
+        if (!silent) alert('Sign in to cloud first (email + password) before loading.');
+        return;
+      }
 
-    if (payload.length === 0) {
-      setCloudStatus(`No local cases to save; Supabase rows for ${user.email} are now cleared.`);
-      alert(`Supabase cleared; no local cases to upload for ${user.email}.`);
-      return;
+      try {
+        setCloudStatus('Loading from Supabase...');
+
+        const { data, error } = await supabaseClient
+          .from('cases')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          console.error(error);
+          setCloudStatus('Error loading from Supabase.');
+          if (!silent) alert('Error loading from Supabase. See console.');
+          return;
+        }
+
+        const rows = data || [];
+        if (rows.length === 0) {
+          setCloudStatus(`No rows found in Supabase for ${user.email}.`);
+          if (!silent) alert('Supabase has no cases stored yet for this account.');
+          return;
+        }
+
+        const mapped = rows.map(row => ({
+          id: row.id || ('supabase-' + (row.docket_number || '') + '-' + Math.random().toString(36).slice(2)),
+          clientName: row.client_name || '',
+          docketNumber: row.docket_number || '',
+          chargeLevel: row.charge_level || '',
+          startDate: row.start_date || '',
+          excludedDays: String(row.excluded_days ?? 0),
+          notes: row.notes || '',
+          nextCourtDate: row.next_court_date || '',
+          courtPart: row.court_part || '',
+          assignedAda: row.assigned_ada || '',
+          noteEntries: Array.isArray(row.note_entries) ? row.note_entries : [],
+          warrant: !!row.warrant,
+          closed: !!row.closed,
+          clockStopped: !!row.clock_stopped,
+          frozenTotalDays: typeof row.frozen_total_days === 'number' ? row.frozen_total_days : null,
+          definitelyExcludedDays: String(row.definitely_excluded_days ?? 0),
+          arguablyExcludedDays: String(row.arguably_excluded_days ?? 0)
+        }));
+
+        saveCases(mapped);
+        renderCases();
+        setCloudStatus(`Loaded cases from Supabase for ${user.email}.`);
+        if (!silent) alert('Loaded cases from Supabase into this browser.');
+      } catch (err) {
+        console.error(err);
+        setCloudStatus('Unexpected error talking to Supabase.');
+        if (!silent) alert('Unexpected error talking to Supabase.');
+      }
     }
 
-    const { error: insError } = await supabaseClient
-      .from('cases')
-      .insert(payload);
+    // --- Cloud auth button handlers ---
 
-    if (insError) {
-      console.error(insError);
-      setCloudStatus('Error saving cases to Supabase.');
-      alert('Error saving cases to Supabase. See console.');
-      return;
+    async function handleCloudSignUp() {
+      const email = document.getElementById('cloudEmail').value.trim();
+      const password = document.getElementById('cloudPassword').value;
+      if (!email || !password) {
+        alert('Enter email and password first.');
+        return;
+      }
+
+      const { error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) {
+        console.error(error);
+        alert('Sign up error: ' + error.message);
+        return;
+      }
+
+      alert('Sign up successful. If email confirmations are enabled, check your inbox.');
+      await refreshAuthStatus();
     }
 
-    setCloudStatus(`Saved current cases to Supabase for ${user.email}.`);
-    alert('Saved current cases to Supabase.');
-  } catch (err) {
-    console.error(err);
-    setCloudStatus('Unexpected error talking to Supabase.');
-    alert('Unexpected error talking to Supabase.');
-  }
-}
+    async function handleCloudSignIn() {
+      const email = document.getElementById('cloudEmail').value.trim();
+      const password = document.getElementById('cloudPassword').value;
+      if (!email || !password) {
+        alert('Enter email and password first.');
+        return;
+      }
 
-    async function loadCasesFromSupabase() {
-  const user = await getCurrentUser();
-  if (!user) {
-    alert('Sign in to cloud first (email + password) before loading.');
-    return;
-  }
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        console.error(error);
+        alert('Sign in error: ' + error.message);
+        return;
+      }
 
-  try {
-    setCloudStatus('Loading from Supabase...');
-
-    const { data, error } = await supabaseClient
-      .from('cases')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error(error);
-      setCloudStatus('Error loading from Supabase.');
-      alert('Error loading from Supabase. See console.');
-      return;
+      document.getElementById('cloudPassword').value = '';
+      await refreshAuthStatus();
+      await loadCasesFromSupabase(false);
     }
 
-    const rows = data || [];
-    if (rows.length === 0) {
-      setCloudStatus(`No rows found in Supabase for ${user.email}.`);
-      alert('Supabase has no cases stored yet for this account.');
-      return;
+    async function handleCloudSignOut() {
+      const { error } = await supabaseClient.auth.signOut();
+      if (error) {
+        console.error(error);
+        alert('Sign out error: ' + error.message);
+        return;
+      }
+      document.getElementById('cloudPassword').value = '';
+      await refreshAuthStatus();
     }
-
-    const mapped = rows.map(row => ({
-      id: row.id || ('supabase-' + (row.docket_number || '') + '-' + Math.random().toString(36).slice(2)),
-      clientName: row.client_name || '',
-      docketNumber: row.docket_number || '',
-      chargeLevel: row.charge_level || '',
-      startDate: row.start_date || '',
-      excludedDays: String(row.excluded_days ?? 0),
-      notes: row.notes || '',
-      nextCourtDate: row.next_court_date || '',
-      courtPart: row.court_part || '',
-      assignedAda: row.assigned_ada || '',
-      noteEntries: Array.isArray(row.note_entries) ? row.note_entries : [],
-      warrant: !!row.warrant,
-      closed: !!row.closed,
-      clockStopped: !!row.clock_stopped,
-      frozenTotalDays: typeof row.frozen_total_days === 'number' ? row.frozen_total_days : null,
-      definitelyExcludedDays: String(row.definitely_excluded_days ?? 0),
-      arguablyExcludedDays: String(row.arguably_excluded_days ?? 0)
-    }));
-
-    saveCases(mapped);
-    renderCases();
-    setCloudStatus(`Loaded cases from Supabase for ${user.email}.`);
-    alert('Loaded cases from Supabase into this browser.');
-  } catch (err) {
-    console.error(err);
-    setCloudStatus('Unexpected error talking to Supabase.');
-    alert('Unexpected error talking to Supabase.');
-  }
-}
-
-
-    // --- Advanced toggles wiring ---
-
-    const advancedMainToggle = document.getElementById('advancedMainToggle');
-    const advancedMainSection = document.getElementById('advancedMainSection');
-    const mainExclError = document.getElementById('mainExclError');
-
-    advancedMainToggle.addEventListener('change', () => {
-      advancedMainSection.style.display = advancedMainToggle.checked ? 'block' : 'none';
-      mainExclError.textContent = '';
-    });
-
-    const modalAdvancedToggle = document.getElementById('modalAdvancedToggle');
-    const modalAdvancedSection = document.getElementById('modalAdvancedSection');
-    const modalExclError = document.getElementById('modalExclError');
-
-    modalAdvancedToggle.addEventListener('change', () => {
-      modalAdvancedSection.style.display = modalAdvancedToggle.checked ? 'flex' : 'none';
-      modalExclError.textContent = '';
-    });
 
     // --- Form / events ---
 
@@ -1300,24 +1305,9 @@ async function refreshAuthStatus() {
       const clockStopped = document.getElementById('clockStopped').checked;
       const editingId = document.getElementById('editingId').value;
 
-      const advancedMainOn = advancedMainToggle.checked;
-      mainExclError.textContent = '';
-
       if (!clientName || !chargeLevel || !startDate) {
         alert('Client name, charge level, and start date are required.');
         return;
-      }
-
-      if (advancedMainOn) {
-        const simple = Number(excludedDays) || 0;
-        const def = Number(definitelyExcludedDays) || 0;
-        const arg = Number(arguablyExcludedDays) || 0;
-
-        if (simple !== def + arg) {
-          mainExclError.textContent = 'Excluded days must equal definitely + arguably excludable when Advanced is on.';
-          alert('Excluded days must equal definitely + arguably excludable when Advanced is on.');
-          return;
-        }
       }
 
       const cases = loadCases();
@@ -1382,9 +1372,6 @@ async function refreshAuthStatus() {
       document.getElementById('excludedDays').value = "0";
       document.getElementById('definitelyExcludedDays').value = "0";
       document.getElementById('arguablyExcludedDays').value = "0";
-      advancedMainToggle.checked = false;
-      advancedMainSection.style.display = 'none';
-      mainExclError.textContent = '';
 
       renderCases();
     });
@@ -1402,7 +1389,10 @@ async function refreshAuthStatus() {
     document.getElementById('importFile').addEventListener('change', handleImportFile);
 
     document.getElementById('cloudSaveBtn').addEventListener('click', saveCasesToSupabase);
-    document.getElementById('cloudLoadBtn').addEventListener('click', loadCasesFromSupabase);
+
+    document.getElementById('cloudSignUp').addEventListener('click', handleCloudSignUp);
+    document.getElementById('cloudSignIn').addEventListener('click', handleCloudSignIn);
+    document.getElementById('cloudSignOut').addEventListener('click', handleCloudSignOut);
 
     // Close modal if clicking outside
     document.getElementById('caseModal').addEventListener('click', (e) => {
@@ -1411,71 +1401,18 @@ async function refreshAuthStatus() {
       }
     });
 
-    // --- Cloud auth button handlers ---
+    // Init auth UI and silently load from cloud if already signed in
+    async function initAuthAndMaybeLoad() {
+      await refreshAuthStatus();
+      const user = await getCurrentUser();
+      if (user) {
+        await loadCasesFromSupabase(true);
+      }
+    }
 
-async function handleCloudSignUp() {
-  const email = document.getElementById('cloudEmail').value.trim();
-  const password = document.getElementById('cloudPassword').value;
-  if (!email || !password) {
-    alert('Enter email and password first.');
-    return;
-  }
-
-  const { data, error } = await supabaseClient.auth.signUp({ email, password });
-  if (error) {
-    console.error(error);
-    alert('Sign up error: ' + error.message);
-    return;
-  }
-
-  // Depending on your Supabase settings, they may need to confirm via email.
-  alert('Sign up successful. If email confirmations are enabled, check your inbox.');
-  await refreshAuthStatus();
-}
-
-async function handleCloudSignIn() {
-  const email = document.getElementById('cloudEmail').value.trim();
-  const password = document.getElementById('cloudPassword').value;
-  if (!email || !password) {
-    alert('Enter email and password first.');
-    return;
-  }
-
-  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (error) {
-    console.error(error);
-    alert('Sign in error: ' + error.message);
-    return;
-  }
-
-  await refreshAuthStatus();
-}
-
-async function handleCloudSignOut() {
-  const { error } = await supabaseClient.auth.signOut();
-  if (error) {
-    console.error(error);
-    alert('Sign out error: ' + error.message);
-    return;
-  }
-  document.getElementById('cloudPassword').value = '';
-  await refreshAuthStatus();
-}
-
-// Attach auth button listeners
-document.getElementById('cloudSignUp').addEventListener('click', handleCloudSignUp);
-document.getElementById('cloudSignIn').addEventListener('click', handleCloudSignIn);
-document.getElementById('cloudSignOut').addEventListener('click', handleCloudSignOut);
-
-// Also keep the existing save/load listeners:
-document.getElementById('cloudSaveBtn').addEventListener('click', saveCasesToSupabase);
-document.getElementById('cloudLoadBtn').addEventListener('click', loadCasesFromSupabase);
-
-// On load, show current auth status (if session from previous visit)
-refreshAuthStatus();
-
-    // initial render
+    // initial render + auth init
     renderCases();
+    initAuthAndMaybeLoad();
   </script>
 </body>
 </html>
