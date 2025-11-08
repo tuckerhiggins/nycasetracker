@@ -275,8 +275,9 @@
     const SUPABASE_URL = "https://pzktoyskgxwbvsauusjg.supabase.co";      // paste your URL here
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6a3RveXNrZ3h3YnZzYXV1c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEyNTEsImV4cCI6MjA3ODE3NzI1MX0.paUrNO010jaGoVIzl9ejIAIQr64MsIsVLTXfEQSuzew";                  // paste your anon key here
 
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+const { createClient } = supabase; // <-- important line
+  const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
     async function testSupabase() {
       // insert a super-obvious test row
       const { data, error } = await supabaseClient
