@@ -175,10 +175,8 @@
       For internal tracking only – you still make the legal call on what's chargeable/excludable.
       Felonies use 6 calendar months; misds/violations use 90/60/30 calendar days, with deadlines bumped off weekends.
     </p>
-<button onclick="testSupabase()" style="margin-bottom: 0.75rem;">
-  🔌 Test Supabase Connection
-</button>
-    <!-- Password + backup section -->
+
+    <!-- Local encrypted backup + Supabase sync (beta) -->
     <div class="backup-bar">
       <div class="field-inline">
         <label for="backupPassword">Backup password (for encrypted export/import)</label>
@@ -190,9 +188,12 @@
       <div class="backup-buttons">
         <button id="exportBtn" class="secondary">Export Encrypted Backup</button>
         <button id="importBtn" class="secondary">Import Encrypted Backup</button>
+        <button id="cloudSaveBtn" class="secondary">Save to Supabase (beta)</button>
+        <button id="cloudLoadBtn" class="secondary">Load from Supabase (beta)</button>
         <input id="importFile" type="file" accept=".txt,.json" style="display:none;">
       </div>
       <div class="small-text" id="backupStatus"></div>
+      <div class="small-text" id="cloudStatus"></div>
     </div>
 
     <div class="top-bar">
@@ -262,43 +263,43 @@
       </tbody>
     </table>
     <p class="small-text">
-      Tip: Use the backup password + export/import to move your cases securely between computers.
+      LocalStorage + encrypted backups are where you should store real client names.
+      Supabase sync is a beta cloud mirror: keep identifiers anonymized until IT blesses it.
       Weekends are auto-adjusted; holidays are not yet coded.
     </p>
   </div>
 
   <!-- CryptoJS for AES encryption of backups -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
-<!-- Supabase JS library + client init -->
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<script>
-  const SUPABASE_URL = "https://pzktoyskgxwbvsauusjg.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6a3RveXNrZ3h3YnZzYXV1c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEyNTEsImV4cCI6MjA3ODE3NzI1MX0.paUrNO010jaGoVIzl9ejIAIQr64MsIsVLTXfEQSuzew";
 
-  // Use the global supabase object directly
-  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  <!-- Supabase JS library + client init -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = "https://pzktoyskgxwbvsauusjg.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6a3RveXNrZ3h3YnZzYXV1c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEyNTEsImV4cCI6MjA3ODE3NzI1MX0.paUrNO010jaGoVIzl9ejIAIQr64MsIsVLTXfEQSuzew";
 
-  async function testSupabase() {
-    console.log("URL:", SUPABASE_URL);
-    console.log("Key prefix:", SUPABASE_ANON_KEY.slice(0, 16)); // sanity check in console
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const { data, error } = await supabaseClient
-      .from('cases')
-      .insert({
-        client_name: 'SUPABASE TEST',
-        docket_number: 'TEST-123',
-        charge_level: 'classA',
-        start_date: '2025-01-01',
-        excluded_days: 0,
-        notes: 'Inserted from nycasetracker.com test',
-        user_id: null
-      })
-      .select();
+    // simple test you can still use if you want
+    async function testSupabase() {
+      const { data, error } = await supabaseClient
+        .from('cases')
+        .insert({
+          client_name: 'SUPABASE TEST',
+          docket_number: 'TEST-123',
+          charge_level: 'classA',
+          start_date: '2025-01-01',
+          excluded_days: 0,
+          notes: 'Inserted from nycasetracker.com test',
+          user_id: null
+        })
+        .select();
 
-    console.log('Insert result:', { data, error });
-    alert(error ? 'Supabase test failed – check console' : 'Supabase test succeeded – check console & dashboard');
-  }
-</script>
+      console.log('Insert result:', { data, error });
+      alert(error ? 'Supabase test failed – check console' : 'Supabase test succeeded – check console & dashboard');
+    }
+  </script>
+
   <script>
     // --- Date helpers ---
 
@@ -360,12 +361,6 @@
       return d;
     }
 
-    /**
-     * Compute:
-     *  - capDays: number of allowable "chargeable days" (for % meter)
-     *  - deadlineStr: last calendar day (after weekend adjustment)
-     *  - tooltip: "Automatically adjusted for weekend" if bumped
-     */
     function computeCapAndDeadline(level, startDateStr) {
       if (!startDateStr) return { capDays: 0, deadlineStr: '', tooltip: '' };
 
@@ -396,7 +391,7 @@
       return { capDays, deadlineStr, tooltip };
     }
 
-    // --- Storage helpers (local storage, unencrypted for day-to-day use) ---
+    // --- Local storage helpers (this is where real client names live) ---
 
     function loadCases() {
       const raw = localStorage.getItem('ny3030Cases');
@@ -528,58 +523,7 @@
       document.getElementById('editingId').value = c.id;
     }
 
-    // --- Form handling ---
-
-    document.getElementById('case-form').addEventListener('submit', function(e) {
-      e.preventDefault();
-      const clientName = document.getElementById('clientName').value.trim();
-      const docketNumber = document.getElementById('docketNumber').value.trim();
-      const chargeLevel = document.getElementById('chargeLevel').value;
-      const startDate = document.getElementById('startDate').value;
-      const excludedDays = document.getElementById('excludedDays').value || "0";
-      const editingId = document.getElementById('editingId').value;
-
-      if (!clientName || !chargeLevel || !startDate) {
-        alert('Client name, charge level, and start date are required.');
-        return;
-      }
-
-      const cases = loadCases();
-
-      if (editingId) {
-        const idx = cases.findIndex(c => c.id === editingId);
-        if (idx !== -1) {
-          cases[idx].clientName = clientName;
-          cases[idx].docketNumber = docketNumber;
-          cases[idx].chargeLevel = chargeLevel;
-          cases[idx].startDate = startDate;
-          cases[idx].excludedDays = excludedDays;
-        }
-      } else {
-        cases.push({
-          id: 'case-' + Date.now() + '-' + Math.random().toString(36).slice(2),
-          clientName,
-          docketNumber,
-          chargeLevel,
-          startDate,
-          excludedDays,
-          notes: ''
-        });
-      }
-
-      saveCases(cases);
-
-      // reset form
-      document.getElementById('editingId').value = '';
-      document.getElementById('case-form').reset();
-      document.getElementById('excludedDays').value = "0";
-
-      renderCases();
-    });
-
-    document.getElementById('search').addEventListener('input', renderCases);
-
-    // --- Encrypted backup (password-protected, portable) ---
+    // --- Local encrypted backup ---
 
     function setBackupStatus(msg) {
       document.getElementById('backupStatus').innerText = msg || '';
@@ -633,7 +577,6 @@
 
       const password = getBackupPassword();
       if (!password) {
-        // reset file input so user can try again later
         event.target.value = '';
         return;
       }
@@ -662,18 +605,176 @@
           console.error(err);
           alert('Could not decrypt/import backup. Check your password and that you chose the correct file.');
         } finally {
-          // allow importing again later
           event.target.value = '';
         }
       };
       reader.readAsText(file);
     }
 
+    // --- Supabase sync (beta, anonymized if you care about PHI) ---
+
+    function setCloudStatus(msg) {
+      document.getElementById('cloudStatus').innerText = msg || '';
+    }
+
+    async function saveCasesToSupabase() {
+      const cases = loadCases();
+      if (!confirm('This will overwrite all rows in the Supabase "cases" table with your current local cases. Continue?')) {
+        return;
+      }
+
+      try {
+        setCloudStatus('Saving to Supabase...');
+        // wipe existing rows in this table (since this is just you for now)
+        const { error: delError } = await supabaseClient
+          .from('cases')
+          .delete()
+          .neq('id', 0); // delete all rows
+
+        if (delError) {
+          console.error(delError);
+          setCloudStatus('Error clearing existing rows in Supabase.');
+          alert('Error clearing Supabase table. See console.');
+          return;
+        }
+
+        const payload = cases.map(c => ({
+          client_name: c.clientName,
+          docket_number: c.docketNumber,
+          charge_level: c.chargeLevel,
+          start_date: c.startDate || null,
+          excluded_days: Number(c.excludedDays) || 0,
+          notes: c.notes || null,
+          user_id: null
+        }));
+
+        if (payload.length === 0) {
+          setCloudStatus('No local cases to save; Supabase table now empty.');
+          alert('Supabase table cleared; no local cases to upload.');
+          return;
+        }
+
+        const { error: insError } = await supabaseClient
+          .from('cases')
+          .insert(payload);
+
+        if (insError) {
+          console.error(insError);
+          setCloudStatus('Error saving cases to Supabase.');
+          alert('Error saving cases to Supabase. See console.');
+          return;
+        }
+
+        setCloudStatus('Saved current cases to Supabase (beta).');
+        alert('Saved current cases to Supabase.');
+      } catch (err) {
+        console.error(err);
+        setCloudStatus('Unexpected error talking to Supabase.');
+        alert('Unexpected error talking to Supabase.');
+      }
+    }
+
+    async function loadCasesFromSupabase() {
+      try {
+        setCloudStatus('Loading from Supabase...');
+        const { data, error } = await supabaseClient
+          .from('cases')
+          .select('*')
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          console.error(error);
+          setCloudStatus('Error loading from Supabase.');
+          alert('Error loading from Supabase. See console.');
+          return;
+        }
+
+        const rows = data || [];
+        if (rows.length === 0) {
+          setCloudStatus('No rows found in Supabase "cases" table.');
+          alert('Supabase has no cases stored yet.');
+          return;
+        }
+
+        const mapped = rows.map(row => ({
+          id: row.id || ('supabase-' + (row.docket_number || '') + '-' + Math.random().toString(36).slice(2)),
+          clientName: row.client_name || '',
+          docketNumber: row.docket_number || '',
+          chargeLevel: row.charge_level || '',
+          startDate: row.start_date || '',
+          excludedDays: String(row.excluded_days ?? 0),
+          notes: row.notes || ''
+        }));
+
+        saveCases(mapped);
+        renderCases();
+        setCloudStatus('Loaded cases from Supabase into this browser.');
+        alert('Loaded cases from Supabase into this browser.');
+      } catch (err) {
+        console.error(err);
+        setCloudStatus('Unexpected error talking to Supabase.');
+        alert('Unexpected error talking to Supabase.');
+      }
+    }
+
+    // --- Form handling ---
+
+    document.getElementById('case-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const clientName = document.getElementById('clientName').value.trim();
+      const docketNumber = document.getElementById('docketNumber').value.trim();
+      const chargeLevel = document.getElementById('chargeLevel').value;
+      const startDate = document.getElementById('startDate').value;
+      const excludedDays = document.getElementById('excludedDays').value || "0";
+      const editingId = document.getElementById('editingId').value;
+
+      if (!clientName || !chargeLevel || !startDate) {
+        alert('Client name, charge level, and start date are required.');
+        return;
+      }
+
+      const cases = loadCases();
+
+      if (editingId) {
+        const idx = cases.findIndex(c => c.id === editingId);
+        if (idx !== -1) {
+          cases[idx].clientName = clientName;
+          cases[idx].docketNumber = docketNumber;
+          cases[idx].chargeLevel = chargeLevel;
+          cases[idx].startDate = startDate;
+          cases[idx].excludedDays = excludedDays;
+        }
+      } else {
+        cases.push({
+          id: 'case-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+          clientName,
+          docketNumber,
+          chargeLevel,
+          startDate,
+          excludedDays,
+          notes: ''
+        });
+      }
+
+      saveCases(cases);
+
+      document.getElementById('editingId').value = '';
+      document.getElementById('case-form').reset();
+      document.getElementById('excludedDays').value = "0";
+
+      renderCases();
+    });
+
+    document.getElementById('search').addEventListener('input', renderCases);
+
     document.getElementById('exportBtn').addEventListener('click', exportEncryptedBackup);
     document.getElementById('importBtn').addEventListener('click', () => {
       document.getElementById('importFile').click();
     });
     document.getElementById('importFile').addEventListener('change', handleImportFile);
+
+    document.getElementById('cloudSaveBtn').addEventListener('click', saveCasesToSupabase);
+    document.getElementById('cloudLoadBtn').addEventListener('click', loadCasesFromSupabase);
 
     // initial render
     renderCases();
