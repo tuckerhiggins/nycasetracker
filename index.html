@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>NY CPL 30.30 Tracker (PD Edition)</title>
+  <title>Case Tracker</title>
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -63,6 +63,11 @@
       background: #e5e7eb;
       color: #111827;
     }
+    .small-link {
+      padding: 0.25rem 0.6rem;
+      font-size: 0.75rem;
+      border-radius: 999px;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -107,22 +112,31 @@
     .search-input {
       max-width: 260px;
     }
+
     .backup-bar {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.75rem;
-      align-items: flex-start;
+      gap: 1rem;
+      align-items: stretch;
       margin-bottom: 1rem;
-      padding: 0.75rem;
-      border-radius: 8px;
+    }
+    .backup-section {
+      flex: 1;
+      min-width: 260px;
       background: #f9fafb;
       border: 1px solid #e5e7eb;
-    }
-    .backup-bar .field-inline {
+      border-radius: 8px;
+      padding: 0.75rem;
       display: flex;
       flex-direction: column;
-      min-width: 220px;
-      flex: 1;
+      gap: 0.5rem;
+    }
+    .backup-section-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6b7280;
     }
     .backup-buttons {
       display: flex;
@@ -268,10 +282,6 @@
         flex-direction: column;
         align-items: flex-start;
       }
-      .backup-bar {
-        flex-direction: column;
-        align-items: flex-start;
-      }
       .modal {
         max-width: 95vw;
       }
@@ -280,50 +290,51 @@
 </head>
 <body>
   <div class="app-container">
-    <h1>NY CPL 30.30 Tracker</h1>
-    <p class="small-text">
-      For internal tracking only – you still make the legal call on what's chargeable/excludable.
-      Felonies use 6 calendar months; misds/violations use 90/60/30 calendar days, with deadlines bumped off weekends.
-    </p>
+    <h1>Case Tracker</h1>
 
-    <!-- Local encrypted backup + Supabase sync (beta) -->
+    <!-- Local backups + Cloud sync (beta) -->
     <div class="backup-bar">
-      <!-- Local encrypted backup controls -->
-      <div class="field-inline">
-        <label for="backupPassword">Backup password (for encrypted export/import)</label>
-        <input id="backupPassword" type="password" placeholder="Set a password you'll remember">
-        <div class="small-text">
-          Used only to encrypt/decrypt backups you move between computers. Keep it safe; if you forget it, backups can't be opened.
+      <!-- Local encrypted backups -->
+      <div class="backup-section">
+        <div class="backup-section-title">Local backups</div>
+        <div class="field">
+          <label for="backupPassword">Backup password (for encrypted export/import)</label>
+          <input id="backupPassword" type="password" placeholder="Set a password you'll remember">
+          <div class="small-text">
+            Used only to encrypt/decrypt backups you move between computers.
+          </div>
         </div>
+        <div class="backup-buttons">
+          <button id="exportBtn" class="secondary">Export Encrypted Backup</button>
+          <button id="importBtn" class="secondary">Import Encrypted Backup</button>
+          <input id="importFile" type="file" accept=".txt,.json" style="display:none;">
+        </div>
+        <div class="small-text" id="backupStatus"></div>
       </div>
 
-      <!-- Cloud login / status -->
-      <div class="field-inline">
-        <label>Cloud (Supabase Auth)</label>
+      <!-- Cloud sync (beta) -->
+      <div class="backup-section">
+        <div class="backup-section-title">Cloud sync (beta)</div>
         <div id="cloudLoginForm">
-          <input id="cloudEmail" type="email" placeholder="email@example.com" style="margin-bottom:0.3rem;">
-          <input id="cloudPassword" type="password" placeholder="Password (testing users)" style="margin-bottom:0.4rem;">
-          <div class="backup-buttons">
-            <button id="cloudSignUp" class="secondary">Sign up</button>
-            <button id="cloudSignIn" class="secondary">Sign in</button>
+          <div class="field">
+            <label>Supabase login</label>
+            <input id="cloudEmail" type="email" placeholder="email@example.com" style="margin-bottom:0.3rem;">
+            <input id="cloudPassword" type="password" placeholder="Password" style="margin-bottom:0.4rem;">
+            <div class="backup-buttons">
+              <button id="cloudSignUp" class="secondary">Sign up</button>
+              <button id="cloudSignIn" class="secondary">Sign in</button>
+            </div>
           </div>
         </div>
         <div id="cloudSignedInRow" class="backup-buttons" style="display:none; margin-top:0.4rem;">
           <span class="small-text" id="cloudUserStatus"></span>
           <button id="cloudSignOut" class="secondary">Sign out</button>
         </div>
+        <div class="backup-buttons" style="margin-top:0.4rem;">
+          <button id="cloudSaveBtn" class="secondary">Save to Cloud</button>
+        </div>
+        <div class="small-text" id="cloudStatus"></div>
       </div>
-
-      <!-- Backup + cloud save buttons -->
-      <div class="backup-buttons">
-        <button id="exportBtn" class="secondary">Export Encrypted Backup</button>
-        <button id="importBtn" class="secondary">Import Encrypted Backup</button>
-        <button id="cloudSaveBtn" class="secondary">Save to Cloud</button>
-        <input id="importFile" type="file" accept=".txt,.json" style="display:none;">
-      </div>
-
-      <div class="small-text" id="backupStatus"></div>
-      <div class="small-text" id="cloudStatus"></div>
     </div>
 
     <div class="top-bar">
@@ -353,7 +364,6 @@
           <div class="field">
             <label for="startDate">Clock Start Date</label>
             <input id="startDate" type="date" required>
-            <div class="small-text">Usually arraignment on initial accusatory.</div>
           </div>
           <div class="field">
             <label for="ncd">Next Court Date (NCD)</label>
@@ -370,10 +380,14 @@
             <label for="excludedDays">Excluded Days (simple total)</label>
             <input id="excludedDays" type="number" min="0" value="0">
             <div class="small-text">
-              Adjournments / periods not chargeable to People. Use advanced breakdown if you want more detail.
+              For quick use, just put the total excludable days here.
             </div>
+            <button type="button" class="secondary small-link" id="advancedMainToggle" style="margin-top:0.4rem;">
+              Advanced excludable…
+            </button>
           </div>
-          <div class="field">
+
+          <div class="field" id="advancedMainContainer" style="display:none;">
             <label>Advanced excludable breakdown (optional)</label>
             <div class="form-row" style="gap:0.5rem; margin-bottom:0;">
               <div class="field">
@@ -386,16 +400,17 @@
               </div>
             </div>
             <div class="small-text">
-              If you use these, the Excluded/Chargeable columns follow the global mode below.
+              Excluded & chargeable will follow the global mode below.
             </div>
           </div>
+
           <div class="field" style="align-self:flex-end;">
             <label>
               <input type="checkbox" id="clockStopped">
               Clock is currently stopped
             </label>
             <div class="small-text">
-              When checked, total days are frozen as of today; new days won’t accrue until you uncheck.
+              When checked, total days are frozen as of today.
             </div>
             <button type="submit" class="primary" style="margin-top:0.5rem;">Add / Update Case</button>
           </div>
@@ -456,12 +471,6 @@
       <tbody id="casesBody">
       </tbody>
     </table>
-    <p class="small-text">
-      LocalStorage + encrypted backups are where you should store real client names.
-      Supabase sync is a beta cloud mirror: keep identifiers anonymized until IT blesses it.
-      Weekends are auto-adjusted; holidays are not yet coded.
-      Click any row to open full case details (Assigned ADA, excludable breakdown, notes, warrant/closed flags, etc.).
-    </p>
   </div>
 
   <!-- Case details modal -->
@@ -505,6 +514,12 @@
       </div>
 
       <div class="form-row">
+        <button type="button" class="secondary small-link" id="advancedModalToggle">
+          Advanced excludable…
+        </button>
+      </div>
+
+      <div class="form-row" id="advancedModalContainer" style="display:none;">
         <div class="field">
           <label for="modalDefExcluded">Definitely excludable days</label>
           <input id="modalDefExcluded" type="number" min="0">
@@ -682,9 +697,9 @@
       ncd.setHours(0,0,0,0);
       const diffMs = ncd - today;
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      if (diffDays < 0) return 'ncd-red';        // in the past
-      if (diffDays <= 7) return 'ncd-yellow';    // within a week
-      return 'ncd-green';                        // more than a week away
+      if (diffDays < 0) return 'ncd-red';
+      if (diffDays <= 7) return 'ncd-yellow';
+      return 'ncd-green';
     }
 
     // --- Local storage helpers ---
@@ -752,7 +767,6 @@
 
       const sa = score(a);
       const sb = score(b);
-
       return sa - sb;
     }
 
@@ -767,14 +781,12 @@
       const showClosed = document.getElementById('showClosed').checked;
       const excludeMode = document.getElementById('excludeMode').value;
 
-      // filter by warrant/closed flags
       cases = cases.filter(c => {
         if (c.closed && !showClosed) return false;
         if (c.warrant && !showWarrant) return false;
         return true;
       });
 
-      // text filter
       if (filter) {
         cases = cases.filter(c => {
           const combinedText = (
@@ -787,7 +799,6 @@
         });
       }
 
-      // sorting
       if (sortMode === 'ncd') {
         cases.sort(compareByNcd);
       } else {
@@ -880,6 +891,14 @@
       document.getElementById('modalNoteText').value = '';
 
       renderModalNotes(c.noteEntries || []);
+
+      // Show advanced section automatically if there are values
+      const advModal = document.getElementById('advancedModalContainer');
+      if ((Number(c.definitelyExcludedDays) || 0) > 0 || (Number(c.arguablyExcludedDays) || 0) > 0) {
+        advModal.style.display = 'flex';
+      } else {
+        advModal.style.display = 'none';
+      }
 
       document.getElementById('caseModal').style.display = 'flex';
     }
@@ -1117,7 +1136,6 @@
       try {
         setCloudStatus('Saving to Supabase...');
 
-        // Delete ONLY this user's rows; RLS also enforces this.
         const { error: delError } = await supabaseClient
           .from('cases')
           .delete()
@@ -1372,6 +1390,7 @@
       document.getElementById('excludedDays').value = "0";
       document.getElementById('definitelyExcludedDays').value = "0";
       document.getElementById('arguablyExcludedDays').value = "0";
+      document.getElementById('advancedMainContainer').style.display = 'none';
 
       renderCases();
     });
@@ -1393,6 +1412,17 @@
     document.getElementById('cloudSignUp').addEventListener('click', handleCloudSignUp);
     document.getElementById('cloudSignIn').addEventListener('click', handleCloudSignIn);
     document.getElementById('cloudSignOut').addEventListener('click', handleCloudSignOut);
+
+    // Advanced toggles
+    document.getElementById('advancedMainToggle').addEventListener('click', () => {
+      const box = document.getElementById('advancedMainContainer');
+      box.style.display = (box.style.display === 'none' || box.style.display === '') ? 'block' : 'none';
+    });
+
+    document.getElementById('advancedModalToggle').addEventListener('click', () => {
+      const box = document.getElementById('advancedModalContainer');
+      box.style.display = (box.style.display === 'none' || box.style.display === '') ? 'flex' : 'none';
+    });
 
     // Close modal if clicking outside
     document.getElementById('caseModal').addEventListener('click', (e) => {
