@@ -267,7 +267,33 @@
 
   <!-- CryptoJS for AES encryption of backups -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+<!-- Supabase JS library + client init -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = "https://YOUR_PROJECT_ID.supabase.co";      // paste your URL here
+    const SUPABASE_ANON_KEY = "YOUR_ANON_KEY_HERE";                  // paste your anon key here
 
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    async function testSupabase() {
+      // insert a super-obvious test row
+      const { data, error } = await supabaseClient
+        .from('cases')
+        .insert({
+          client_name: 'SUPABASE TEST',
+          docket_number: 'TEST-123',
+          charge_level: 'classA',
+          start_date: '2025-01-01',
+          excluded_days: 0,
+          notes: 'Inserted from nycasetracker.com test',
+          user_id: null   // we’ll fix this when we add real auth
+        })
+        .select();
+
+      console.log('Insert result:', { data, error });
+      alert(error ? 'Supabase test failed – check console' : 'Supabase test succeeded – check console & dashboard');
+    }
+  </script>
   <script>
     // --- Date helpers ---
 
