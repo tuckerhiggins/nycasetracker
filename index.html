@@ -1,26 +1,513 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NY Case Tracker</title>
+  <meta charset="UTF-8">
+  <title>NY CPL 30.30 Tracker (PD Edition)</title>
   <style>
     body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1.5rem;
+      background: #f5f5f7;
+    }
+    h1 {
+      margin-top: 0;
+    }
+    .app-container {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    .form-row {
       display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      font-family: system-ui, sans-serif;
-      background: #0b2545;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 150px;
+    }
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    input, select {
+      padding: 0.4rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 0.9rem;
+    }
+    button {
+      padding: 0.5rem 0.9rem;
+      font-size: 0.9rem;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+    }
+    button.primary {
+      background: #2563eb;
       color: white;
-      text-align: center;
+    }
+    button.danger {
+      background: #ef4444;
+      color: white;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      font-size: 0.85rem;
+    }
+    th, td {
+      padding: 0.4rem 0.5rem;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+    }
+    th {
+      background: #f3f4f6;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .tag {
+      display: inline-block;
+      padding: 0.15rem 0.4rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .tag-felony { background: #fee2e2; color: #b91c1c; }
+    .tag-a { background: #e0f2fe; color: #1d4ed8; }
+    .tag-b { background: #dcfce7; color: #166534; }
+    .tag-v { background: #fef3c7; color: #92400e; }
+    .pill-warning {
+      background: #fef3c7;
+      color: #92400e;
+      padding: 0.15rem 0.4rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .pill-danger {
+      background: #fee2e2;
+      color: #b91c1c;
+      padding: 0.15rem 0.4rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .pill-ok {
+      background: #dcfce7;
+      color: #166534;
+      padding: 0.15rem 0.4rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .small-text {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-top: 0.25rem;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .search-input {
+      max-width: 260px;
+    }
+    @media (max-width: 700px) {
+      table {
+        font-size: 0.75rem;
+      }
+      .top-bar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
     }
   </style>
 </head>
 <body>
-  <div>
-    <h1>NY Case Tracker</h1>
-    <p>Coming soon — built to help public defenders manage 30.30 and speedy trial clocks.</p>
+  <div class="app-container">
+    <h1>NY CPL 30.30 Tracker</h1>
+    <p class="small-text">
+      For internal tracking only – you still make the legal call on what's chargeable/excludable.
+      Felonies use 6 calendar months; misds/violations use 90/60/30 calendar days, with deadlines bumped off weekends.
+    </p>
+
+    <div class="top-bar">
+      <form id="case-form">
+        <div class="form-row">
+          <div class="field">
+            <label for="clientName">Client / Case Name</label>
+            <input id="clientName" required placeholder="e.g., Doe, John">
+          </div>
+          <div class="field">
+            <label for="docketNumber">Docket / Indictment #</label>
+            <input id="docketNumber" placeholder="e.g., 2025NY123456">
+          </div>
+          <div class="field">
+            <label for="chargeLevel">Top Charge Level</label>
+            <select id="chargeLevel" required>
+              <option value="">Select...</option>
+              <option value="felony">Felony (6 mo cap)</option>
+              <option value="classA">Class A Misd (90 days)</option>
+              <option value="classB">Class B Misd (60 days)</option>
+              <option value="violation">Violation (30 days)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label for="startDate">Clock Start Date</label>
+            <input id="startDate" type="date" required>
+            <div class="small-text">Usually arraignment on initial accusatory.</div>
+          </div>
+          <div class="field">
+            <label for="excludedDays">Excluded Days (so far)</label>
+            <input id="excludedDays" type="number" min="0" value="0">
+            <div class="small-text">Adjournments / periods not chargeable to People.</div>
+          </div>
+          <div class="field" style="align-self:flex-end;">
+            <button type="submit" class="primary">Add / Update Case</button>
+          </div>
+        </div>
+        <input type="hidden" id="editingId" value="">
+      </form>
+
+      <div class="field search-input">
+        <label for="search">Filter Cases</label>
+        <input id="search" placeholder="Search by client, docket, notes...">
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Docket</th>
+          <th>Charge</th>
+          <th>Start</th>
+          <th>Total Days</th>
+          <th>Excluded</th>
+          <th>Chargeable</th>
+          <th>Cap (days)</th>
+          <th>Deadline</th>
+          <th>Status</th>
+          <th>Notes</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="casesBody">
+      </tbody>
+    </table>
+    <p class="small-text">
+      Tip: Click "Edit" to adjust excluded days as you get discovery rulings, motion practice, defense-requested adjournments, etc. 
+      Weekends are auto-adjusted; holidays are not yet coded.
+    </p>
   </div>
+
+  <script>
+    // --- Date helpers ---
+
+    function parseLocalDate(yyyyMmDd) {
+      const [y, m, d] = yyyyMmDd.split('-').map(Number);
+      // Month is 0-based
+      return new Date(y, m - 1, d);
+    }
+
+    function formatDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function daysBetween(startDateStr) {
+      if (!startDateStr) return 0;
+      const start = parseLocalDate(startDateStr);
+      const today = new Date();
+      start.setHours(0,0,0,0);
+      today.setHours(0,0,0,0);
+      const diffMs = today - start;
+      return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
+    function daysBetweenDates(start, end) {
+      const a = new Date(start.getTime());
+      const b = new Date(end.getTime());
+      a.setHours(0,0,0,0);
+      b.setHours(0,0,0,0);
+      const diffMs = b - a;
+      return Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
+    function addMonthsSameDay(date, n) {
+      const d = new Date(date.getTime());
+      const day = d.getDate();
+      d.setMonth(d.getMonth() + n);
+
+      // If month rolled and day changed (e.g., Jan 31 -> Mar 3),
+      // snap to last day of previous month
+      if (d.getDate() !== day) {
+        d.setDate(0); // go to last day of previous month
+      }
+      return d;
+    }
+
+    function addDays(date, n) {
+      const d = new Date(date.getTime());
+      d.setDate(d.getDate() + n);
+      return d;
+    }
+
+    function adjustForWeekend(date) {
+      const d = new Date(date.getTime());
+      const dow = d.getDay(); // 0 = Sun, 6 = Sat
+      if (dow === 6) {
+        // Saturday -> Monday
+        d.setDate(d.getDate() + 2);
+      } else if (dow === 0) {
+        // Sunday -> Monday
+        d.setDate(d.getDate() + 1);
+      }
+      // NOTE: Holidays not handled yet; just weekends.
+      return d;
+    }
+
+    /**
+     * Compute:
+     *  - capDays: the number of allowable "chargeable days" (for the % meter)
+     *  - deadlineStr: last calendar day (after weekend adjustment)
+     */
+    function computeCapAndDeadline(level, startDateStr) {
+  if (!startDateStr) return { capDays: 0, deadlineStr: '', tooltip: '' };
+
+  const start = parseLocalDate(startDateStr);
+  let baseDeadline, capDays;
+
+  if (level === 'felony') {
+    baseDeadline = addMonthsSameDay(start, 6);
+    capDays = daysBetweenDates(start, baseDeadline);
+  } else if (level === 'classA') {
+    baseDeadline = addDays(start, 90);
+    capDays = 90;
+  } else if (level === 'classB') {
+    baseDeadline = addDays(start, 60);
+    capDays = 60;
+  } else if (level === 'violation') {
+    baseDeadline = addDays(start, 30);
+    capDays = 30;
+  } else {
+    return { capDays: 0, deadlineStr: '', tooltip: '' };
+  }
+
+  const adjustedDeadline = adjustForWeekend(baseDeadline);
+  const adjusted = adjustedDeadline.getTime() !== baseDeadline.getTime();
+  const deadlineStr = formatDate(adjustedDeadline);
+  const tooltip = adjusted ? "Automatically adjusted for weekend" : "";
+
+  return { capDays, deadlineStr, tooltip };
+}
+
+    }
+
+    // --- Storage helpers ---
+
+    function loadCases() {
+      const raw = localStorage.getItem('ny3030Cases');
+      if (!raw) return [];
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return [];
+      }
+    }
+
+    function saveCases(cases) {
+      localStorage.setItem('ny3030Cases', JSON.stringify(cases));
+    }
+
+    // --- UI helpers ---
+
+    function chargeTag(level) {
+      switch (level) {
+        case 'felony': return '<span class="tag tag-felony">Felony</span>';
+        case 'classA': return '<span class="tag tag-a">Class A Misd</span>';
+        case 'classB': return '<span class="tag tag-b">Class B Misd</span>';
+        case 'violation': return '<span class="tag tag-v">Violation</span>';
+        default: return '';
+      }
+    }
+
+    function statusPill(chargeable, cap) {
+      if (!cap || cap <= 0) return '';
+      const ratio = chargeable / cap;
+      if (chargeable >= cap) {
+        return '<span class="pill-danger">⚠ Over cap?</span>';
+      } else if (ratio >= 0.75) {
+        return '<span class="pill-warning">⚠ ' + Math.round(ratio * 100) + '% used</span>';
+      } else {
+        return '<span class="pill-ok">' + Math.round(ratio * 100) + '% used</span>';
+      }
+    }
+
+    // --- Rendering ---
+
+    function renderCases() {
+      const tbody = document.getElementById('casesBody');
+      const cases = loadCases();
+      const filter = document.getElementById('search').value.toLowerCase();
+
+      tbody.innerHTML = '';
+
+      cases.forEach(c => {
+        const totalDays = daysBetween(c.startDate);
+        const excluded = Number(c.excludedDays) || 0;
+        const chargeable = Math.max(0, totalDays - excluded);
+
+        const { capDays, deadlineStr } = computeCapAndDeadline(c.chargeLevel, c.startDate);
+
+        const combinedText = (c.clientName + ' ' + c.docketNumber + ' ' + (c.notes || '')).toLowerCase();
+        if (filter && !combinedText.includes(filter)) {
+          return;
+        }
+
+        const tr = document.createElement('tr');
+
+        tr.innerHTML = `
+          <td>${c.clientName}</td>
+          <td>${c.docketNumber || ''}</td>
+          <td>${chargeTag(c.chargeLevel)}</td>
+          <td>${c.startDate || ''}</td>
+          <td>${totalDays}</td>
+          <td>${excluded}</td>
+          <td>${chargeable}</td>
+          <td>${capDays || ''}</td>
+          <td>${deadlineStr || ''}</td>
+          <td>${statusPill(chargeable, capDays)}</td>
+          <td>
+            <input type="text" data-notes-for="${c.id}" value="${c.notes || ''}" style="width: 140px; font-size: 0.8rem;">
+          </td>
+          <td>
+            <button data-edit="${c.id}">Edit</button>
+            <button class="danger" data-delete="${c.id}">Delete</button>
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+
+      // Attach notes listeners
+      document.querySelectorAll('input[data-notes-for]').forEach(input => {
+        input.addEventListener('change', (e) => {
+          const id = e.target.getAttribute('data-notes-for');
+          const cases = loadCases();
+          const idx = cases.findIndex(c => c.id === id);
+          if (idx !== -1) {
+            cases[idx].notes = e.target.value;
+            saveCases(cases);
+          }
+        });
+      });
+
+      // Attach edit/delete listeners
+      document.querySelectorAll('button[data-edit]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-edit');
+          startEditCase(id);
+        });
+      });
+
+      document.querySelectorAll('button[data-delete]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-delete');
+          if (confirm('Delete this case from your tracker?')) {
+            const cases = loadCases().filter(c => c.id !== id);
+            saveCases(cases);
+            renderCases();
+          }
+        });
+      });
+    }
+
+    function startEditCase(id) {
+      const cases = loadCases();
+      const c = cases.find(c => c.id === id);
+      if (!c) return;
+
+      document.getElementById('clientName').value = c.clientName;
+      document.getElementById('docketNumber').value = c.docketNumber || '';
+      document.getElementById('chargeLevel').value = c.chargeLevel;
+      document.getElementById('startDate').value = c.startDate || '';
+      document.getElementById('excludedDays').value = c.excludedDays || 0;
+      document.getElementById('editingId').value = c.id;
+    }
+
+    // --- Form handling ---
+
+    document.getElementById('case-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const clientName = document.getElementById('clientName').value.trim();
+      const docketNumber = document.getElementById('docketNumber').value.trim();
+      const chargeLevel = document.getElementById('chargeLevel').value;
+      const startDate = document.getElementById('startDate').value;
+      const excludedDays = document.getElementById('excludedDays').value || "0";
+      const editingId = document.getElementById('editingId').value;
+
+      if (!clientName || !chargeLevel || !startDate) {
+        alert('Client name, charge level, and start date are required.');
+        return;
+      }
+
+      const cases = loadCases();
+
+      if (editingId) {
+        const idx = cases.findIndex(c => c.id === editingId);
+        if (idx !== -1) {
+          cases[idx].clientName = clientName;
+          cases[idx].docketNumber = docketNumber;
+          cases[idx].chargeLevel = chargeLevel;
+          cases[idx].startDate = startDate;
+          cases[idx].excludedDays = excludedDays;
+        }
+      } else {
+        cases.push({
+          id: 'case-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+          clientName,
+          docketNumber,
+          chargeLevel,
+          startDate,
+          excludedDays,
+          notes: ''
+        });
+      }
+
+      saveCases(cases);
+
+      // reset form
+      document.getElementById('editingId').value = '';
+      document.getElementById('case-form').reset();
+      document.getElementById('excludedDays').value = "0";
+
+      renderCases();
+    });
+
+    document.getElementById('search').addEventListener('input', renderCases);
+
+    // initial render
+    renderCases();
+  </script>
 </body>
 </html>
