@@ -38,7 +38,7 @@
       font-weight: 600;
       margin-bottom: 0.25rem;
     }
-    input, select {
+    input, select, textarea {
       padding: 0.4rem 0.5rem;
       border-radius: 6px;
       border: 1px solid #ccc;
@@ -91,30 +91,6 @@
     .tag-a { background: #e0f2fe; color: #1d4ed8; }
     .tag-b { background: #dcfce7; color: #166534; }
     .tag-v { background: #fef3c7; color: #92400e; }
-    .pill-warning {
-      background: #fef3c7;
-      color: #92400e;
-      padding: 0.15rem 0.4rem;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-    .pill-danger {
-      background: #fee2e2;
-      color: #b91c1c;
-      padding: 0.15rem 0.4rem;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-    .pill-ok {
-      background: #dcfce7;
-      color: #166534;
-      padding: 0.15rem 0.4rem;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
     .small-text {
       font-size: 0.75rem;
       color: #6b7280;
@@ -153,6 +129,61 @@
       flex-wrap: wrap;
       gap: 0.5rem;
     }
+
+    /* Modal styles */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .modal {
+      background: #ffffff;
+      border-radius: 12px;
+      max-width: 600px;
+      width: 100%;
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    .modal-header h2 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+    .modal-close {
+      cursor: pointer;
+      font-size: 1.2rem;
+      border: none;
+      background: transparent;
+    }
+    .modal-section-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-top: 0.75rem;
+      margin-bottom: 0.25rem;
+    }
+    .notes-list {
+      margin: 0;
+      padding-left: 1rem;
+      font-size: 0.8rem;
+    }
+    .notes-list li {
+      margin-bottom: 0.25rem;
+    }
+    .note-date {
+      font-weight: 600;
+    }
+
     @media (max-width: 700px) {
       table {
         font-size: 0.75rem;
@@ -164,6 +195,9 @@
       .backup-bar {
         flex-direction: column;
         align-items: flex-start;
+      }
+      .modal {
+        max-width: 95vw;
       }
     }
   </style>
@@ -254,9 +288,8 @@
           <th>Chargeable</th>
           <th>Cap (days)</th>
           <th>Deadline</th>
-          <th>Status</th>
-          <th>Notes</th>
-          <th>Actions</th>
+          <th>NCD</th>
+          <th>Part</th>
         </tr>
       </thead>
       <tbody id="casesBody">
@@ -266,7 +299,86 @@
       LocalStorage + encrypted backups are where you should store real client names.
       Supabase sync is a beta cloud mirror: keep identifiers anonymized until IT blesses it.
       Weekends are auto-adjusted; holidays are not yet coded.
+      Click any row to open full case details (Assigned ADA, note log, etc.).
     </p>
+  </div>
+
+  <!-- Case details modal -->
+  <div id="caseModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">Case Details</h2>
+        <button class="modal-close" onclick="closeCaseModal()">×</button>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label for="modalClientName">Client / Case Name</label>
+          <input id="modalClientName">
+        </div>
+        <div class="field">
+          <label for="modalDocketNumber">Docket / Indictment #</label>
+          <input id="modalDocketNumber">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label for="modalChargeLevel">Top Charge Level</label>
+          <select id="modalChargeLevel">
+            <option value="">Select...</option>
+            <option value="felony">Felony</option>
+            <option value="classA">Class A Misd</option>
+            <option value="classB">Class B Misd</option>
+            <option value="violation">Violation</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="modalStartDate">Clock Start Date</label>
+          <input id="modalStartDate" type="date">
+        </div>
+        <div class="field">
+          <label for="modalExcludedDays">Excluded Days</label>
+          <input id="modalExcludedDays" type="number" min="0">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label for="modalNcd">Next Court Date (NCD)</label>
+          <input id="modalNcd" type="date">
+        </div>
+        <div class="field">
+          <label for="modalPart">Part</label>
+          <input id="modalPart" placeholder="e.g., AP3, Part 41">
+        </div>
+        <div class="field">
+          <label for="modalAda">Assigned ADA</label>
+          <input id="modalAda" placeholder="ADA Name">
+        </div>
+      </div>
+
+      <div>
+        <div class="modal-section-title">Notes</div>
+        <ul id="modalNotesList" class="notes-list"></ul>
+        <div class="form-row">
+          <div class="field">
+            <label for="modalNoteDate">Note Date</label>
+            <input id="modalNoteDate" type="date">
+          </div>
+          <div class="field">
+            <label for="modalNoteText">Note Text</label>
+            <textarea id="modalNoteText" rows="2" placeholder="e.g., People served discovery; defense asked for adjournment..."></textarea>
+          </div>
+        </div>
+        <button class="secondary" onclick="addNoteToCurrentCase()">Add Note</button>
+      </div>
+
+      <div style="margin-top: 1rem; display:flex; justify-content: space-between; gap:0.5rem;">
+        <button class="primary" onclick="saveModalChanges()">Save changes</button>
+        <button class="danger" onclick="deleteCurrentCase()">Delete case</button>
+      </div>
+    </div>
   </div>
 
   <!-- CryptoJS for AES encryption of backups -->
@@ -279,28 +391,11 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6a3RveXNrZ3h3YnZzYXV1c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEyNTEsImV4cCI6MjA3ODE3NzI1MX0.paUrNO010jaGoVIzl9ejIAIQr64MsIsVLTXfEQSuzew";
 
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    // simple test you can still use if you want
-    async function testSupabase() {
-      const { data, error } = await supabaseClient
-        .from('cases')
-        .insert({
-          client_name: 'SUPABASE TEST',
-          docket_number: 'TEST-123',
-          charge_level: 'classA',
-          start_date: '2025-01-01',
-          excluded_days: 0,
-          notes: 'Inserted from nycasetracker.com test',
-          user_id: null
-        })
-        .select();
-
-      console.log('Insert result:', { data, error });
-      alert(error ? 'Supabase test failed – check console' : 'Supabase test succeeded – check console & dashboard');
-    }
   </script>
 
   <script>
+    let currentModalCaseId = null;
+
     // --- Date helpers ---
 
     function parseLocalDate(yyyyMmDd) {
@@ -391,13 +486,27 @@
       return { capDays, deadlineStr, tooltip };
     }
 
-    // --- Local storage helpers (this is where real client names live) ---
+    // --- Local storage helpers ---
 
     function loadCases() {
       const raw = localStorage.getItem('ny3030Cases');
       if (!raw) return [];
       try {
-        return JSON.parse(raw);
+        const arr = JSON.parse(raw);
+        // normalize new fields
+        return arr.map(c => ({
+          id: c.id,
+          clientName: c.clientName || '',
+          docketNumber: c.docketNumber || '',
+          chargeLevel: c.chargeLevel || '',
+          startDate: c.startDate || '',
+          excludedDays: c.excludedDays || "0",
+          notes: c.notes || '',
+          nextCourtDate: c.nextCourtDate || '',
+          courtPart: c.courtPart || '',
+          assignedAda: c.assignedAda || '',
+          noteEntries: Array.isArray(c.noteEntries) ? c.noteEntries : []
+        }));
       } catch {
         return [];
       }
@@ -419,19 +528,7 @@
       }
     }
 
-    function statusPill(chargeable, cap) {
-      if (!cap || cap <= 0) return '';
-      const ratio = chargeable / cap;
-      if (chargeable >= cap) {
-        return '<span class="pill-danger">⚠ Over cap?</span>';
-      } else if (ratio >= 0.75) {
-        return '<span class="pill-warning">⚠ ' + Math.round(ratio * 100) + '% used</span>';
-      } else {
-        return '<span class="pill-ok">' + Math.round(ratio * 100) + '% used</span>';
-      }
-    }
-
-    // --- Rendering ---
+    // --- Rendering main table ---
 
     function renderCases() {
       const tbody = document.getElementById('casesBody');
@@ -447,7 +544,13 @@
 
         const { capDays, deadlineStr, tooltip } = computeCapAndDeadline(c.chargeLevel, c.startDate);
 
-        const combinedText = (c.clientName + ' ' + c.docketNumber + ' ' + (c.notes || '')).toLowerCase();
+        const combinedText = (
+          c.clientName + ' ' +
+          c.docketNumber + ' ' +
+          (c.notes || '') + ' ' +
+          (c.assignedAda || '')
+        ).toLowerCase();
+
         if (filter && !combinedText.includes(filter)) {
           return;
         }
@@ -464,49 +567,15 @@
           <td>${chargeable}</td>
           <td>${capDays || ''}</td>
           <td title="${tooltip || ''}">${deadlineStr || ''}</td>
-          <td>${statusPill(chargeable, capDays)}</td>
-          <td>
-            <input type="text" data-notes-for="${c.id}" value="${c.notes || ''}" style="width: 140px; font-size: 0.8rem;">
-          </td>
-          <td>
-            <button data-edit="${c.id}">Edit</button>
-            <button class="danger" data-delete="${c.id}">Delete</button>
-          </td>
+          <td>${c.nextCourtDate || ''}</td>
+          <td>${c.courtPart || ''}</td>
         `;
 
+        tr.addEventListener('click', () => {
+          openCaseModal(c.id);
+        });
+
         tbody.appendChild(tr);
-      });
-
-      // Attach notes listeners
-      document.querySelectorAll('input[data-notes-for]').forEach(input => {
-        input.addEventListener('change', (e) => {
-          const id = e.target.getAttribute('data-notes-for');
-          const cases = loadCases();
-          const idx = cases.findIndex(c => c.id === id);
-          if (idx !== -1) {
-            cases[idx].notes = e.target.value;
-            saveCases(cases);
-          }
-        });
-      });
-
-      // Attach edit/delete listeners
-      document.querySelectorAll('button[data-edit]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.getAttribute('data-edit');
-          startEditCase(id);
-        });
-      });
-
-      document.querySelectorAll('button[data-delete]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.getAttribute('data-delete');
-          if (confirm('Delete this case from your tracker?')) {
-            const cases = loadCases().filter(c => c.id !== id);
-            saveCases(cases);
-            renderCases();
-          }
-        });
       });
     }
 
@@ -521,6 +590,110 @@
       document.getElementById('startDate').value = c.startDate || '';
       document.getElementById('excludedDays').value = c.excludedDays || 0;
       document.getElementById('editingId').value = c.id;
+    }
+
+    // --- Modal logic ---
+
+    function openCaseModal(id) {
+      const cases = loadCases();
+      const c = cases.find(c => c.id === id);
+      if (!c) return;
+      currentModalCaseId = id;
+
+      document.getElementById('modalTitle').textContent = c.clientName || 'Case Details';
+      document.getElementById('modalClientName').value = c.clientName || '';
+      document.getElementById('modalDocketNumber').value = c.docketNumber || '';
+      document.getElementById('modalChargeLevel').value = c.chargeLevel || '';
+      document.getElementById('modalStartDate').value = c.startDate || '';
+      document.getElementById('modalExcludedDays').value = c.excludedDays || 0;
+      document.getElementById('modalNcd').value = c.nextCourtDate || '';
+      document.getElementById('modalPart').value = c.courtPart || '';
+      document.getElementById('modalAda').value = c.assignedAda || '';
+
+      document.getElementById('modalNoteDate').value = '';
+      document.getElementById('modalNoteText').value = '';
+
+      renderModalNotes(c.noteEntries || []);
+
+      document.getElementById('caseModal').style.display = 'flex';
+    }
+
+    function closeCaseModal() {
+      currentModalCaseId = null;
+      document.getElementById('caseModal').style.display = 'none';
+    }
+
+    function renderModalNotes(notes) {
+      const list = document.getElementById('modalNotesList');
+      list.innerHTML = '';
+      if (!notes || notes.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'No notes yet.';
+        list.appendChild(li);
+        return;
+      }
+      notes.forEach(n => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="note-date">${n.date || ''}</span>: ${n.text || ''}`;
+        list.appendChild(li);
+      });
+    }
+
+    function addNoteToCurrentCase() {
+      if (!currentModalCaseId) return;
+      const date = document.getElementById('modalNoteDate').value;
+      const text = document.getElementById('modalNoteText').value.trim();
+      if (!date && !text) {
+        alert('Enter a date and/or note text.');
+        return;
+      }
+
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const caseObj = cases[idx];
+      if (!Array.isArray(caseObj.noteEntries)) {
+        caseObj.noteEntries = [];
+      }
+      caseObj.noteEntries.push({ date, text });
+      saveCases(cases);
+
+      document.getElementById('modalNoteDate').value = '';
+      document.getElementById('modalNoteText').value = '';
+      renderModalNotes(caseObj.noteEntries);
+    }
+
+    function saveModalChanges() {
+      if (!currentModalCaseId) return;
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const c = cases[idx];
+
+      c.clientName = document.getElementById('modalClientName').value.trim();
+      c.docketNumber = document.getElementById('modalDocketNumber').value.trim();
+      c.chargeLevel = document.getElementById('modalChargeLevel').value;
+      c.startDate = document.getElementById('modalStartDate').value;
+      c.excludedDays = document.getElementById('modalExcludedDays').value || "0";
+      c.nextCourtDate = document.getElementById('modalNcd').value;
+      c.courtPart = document.getElementById('modalPart').value.trim();
+      c.assignedAda = document.getElementById('modalAda').value.trim();
+
+      saveCases(cases);
+      renderCases();
+      closeCaseModal();
+    }
+
+    function deleteCurrentCase() {
+      if (!currentModalCaseId) return;
+      if (!confirm('Delete this case from your tracker?')) return;
+
+      const cases = loadCases().filter(c => c.id !== currentModalCaseId);
+      saveCases(cases);
+      renderCases();
+      closeCaseModal();
     }
 
     // --- Local encrypted backup ---
@@ -611,7 +784,7 @@
       reader.readAsText(file);
     }
 
-    // --- Supabase sync (beta, anonymized if you care about PHI) ---
+    // --- Supabase sync (beta) ---
 
     function setCloudStatus(msg) {
       document.getElementById('cloudStatus').innerText = msg || '';
@@ -624,13 +797,12 @@
       }
 
       try {
-            setCloudStatus('Saving to Supabase...');
-    // wipe existing rows in this table (since this is just you for now)
-    const { error: delError } = await supabaseClient
-      .from('cases')
-      .delete()
-      .not('id', 'is', null); // delete all rows with a non-null id (i.e., all real rows)
+        setCloudStatus('Saving to Supabase...');
 
+        const { error: delError } = await supabaseClient
+          .from('cases')
+          .delete()
+          .not('id', 'is', null); // delete all existing rows
 
         if (delError) {
           console.error(delError);
@@ -646,7 +818,11 @@
           start_date: c.startDate || null,
           excluded_days: Number(c.excludedDays) || 0,
           notes: c.notes || null,
-          user_id: null
+          user_id: null,
+          next_court_date: c.nextCourtDate || null,
+          court_part: c.courtPart || null,
+          assigned_ada: c.assignedAda || null,
+          note_entries: c.noteEntries || []
         }));
 
         if (payload.length === 0) {
@@ -704,7 +880,11 @@
           chargeLevel: row.charge_level || '',
           startDate: row.start_date || '',
           excludedDays: String(row.excluded_days ?? 0),
-          notes: row.notes || ''
+          notes: row.notes || '',
+          nextCourtDate: row.next_court_date || '',
+          courtPart: row.court_part || '',
+          assignedAda: row.assigned_ada || '',
+          noteEntries: Array.isArray(row.note_entries) ? row.note_entries : []
         }));
 
         saveCases(mapped);
@@ -718,7 +898,7 @@
       }
     }
 
-    // --- Form handling ---
+    // --- Form / events ---
 
     document.getElementById('case-form').addEventListener('submit', function(e) {
       e.preventDefault();
@@ -739,11 +919,15 @@
       if (editingId) {
         const idx = cases.findIndex(c => c.id === editingId);
         if (idx !== -1) {
-          cases[idx].clientName = clientName;
-          cases[idx].docketNumber = docketNumber;
-          cases[idx].chargeLevel = chargeLevel;
-          cases[idx].startDate = startDate;
-          cases[idx].excludedDays = excludedDays;
+          const existing = cases[idx];
+          cases[idx] = {
+            ...existing,
+            clientName,
+            docketNumber,
+            chargeLevel,
+            startDate,
+            excludedDays
+          };
         }
       } else {
         cases.push({
@@ -753,7 +937,11 @@
           chargeLevel,
           startDate,
           excludedDays,
-          notes: ''
+          notes: '',
+          nextCourtDate: '',
+          courtPart: '',
+          assignedAda: '',
+          noteEntries: []
         });
       }
 
@@ -776,6 +964,13 @@
 
     document.getElementById('cloudSaveBtn').addEventListener('click', saveCasesToSupabase);
     document.getElementById('cloudLoadBtn').addEventListener('click', loadCasesFromSupabase);
+
+    // Close modal if clicking outside
+    document.getElementById('caseModal').addEventListener('click', (e) => {
+      if (e.target.id === 'caseModal') {
+        closeCaseModal();
+      }
+    });
 
     // initial render
     renderCases();
