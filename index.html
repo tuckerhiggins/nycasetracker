@@ -270,33 +270,35 @@
   <!-- CryptoJS for AES encryption of backups -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
 <!-- Supabase JS library + client init -->
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-  <script>
-    const SUPABASE_URL = "https://pzktoyskgxwbvsauusjg.supabase.co";      // paste your URL here
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6a3RveXNrZ3h3YnZzYXV1c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEyNTEsImV4cCI6MjA3ODE3NzI1MX0.paUrNO010jaGoVIzl9ejIAIQr64MsIsVLTXfEQSuzew";                  // paste your anon key here
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://pzktoyskgxwbvsauusjg.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6a3RveXNrZ3h3YnZzYXV1c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEyNTEsImV4cCI6MjA3ODE3NzI1MX0.paUrNO010jaGoVIzl9ejIAIQr64MsIsVLTXfEQSuzew";
 
-const { createClient } = supabase; // <-- important line
-  const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    
-    async function testSupabase() {
-      // insert a super-obvious test row
-      const { data, error } = await supabaseClient
-        .from('cases')
-        .insert({
-          client_name: 'SUPABASE TEST',
-          docket_number: 'TEST-123',
-          charge_level: 'classA',
-          start_date: '2025-01-01',
-          excluded_days: 0,
-          notes: 'Inserted from nycasetracker.com test',
-          user_id: null   // we’ll fix this when we add real auth
-        })
-        .select();
+  // Use the global supabase object directly
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-      console.log('Insert result:', { data, error });
-      alert(error ? 'Supabase test failed – check console' : 'Supabase test succeeded – check console & dashboard');
-    }
-  </script>
+  async function testSupabase() {
+    console.log("URL:", SUPABASE_URL);
+    console.log("Key prefix:", SUPABASE_ANON_KEY.slice(0, 16)); // sanity check in console
+
+    const { data, error } = await supabaseClient
+      .from('cases')
+      .insert({
+        client_name: 'SUPABASE TEST',
+        docket_number: 'TEST-123',
+        charge_level: 'classA',
+        start_date: '2025-01-01',
+        excluded_days: 0,
+        notes: 'Inserted from nycasetracker.com test',
+        user_id: null
+      })
+      .select();
+
+    console.log('Insert result:', { data, error });
+    alert(error ? 'Supabase test failed – check console' : 'Supabase test succeeded – check console & dashboard');
+  }
+</script>
   <script>
     // --- Date helpers ---
 
