@@ -130,6 +130,72 @@
       gap: 0.5rem;
     }
 
+    .filters-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+      align-items: center;
+    }
+    .filters-row .field-inline {
+      display: flex;
+      flex-direction: column;
+      min-width: 160px;
+    }
+    .checkbox-group {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+    .checkbox-group label {
+      font-weight: 400;
+      margin-bottom: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    /* NCD color coding */
+    .ncd-red {
+      background: #fee2e2;
+      color: #b91c1c;
+      font-weight: 600;
+    }
+    .ncd-yellow {
+      background: #fef9c3;
+      color: #92400e;
+      font-weight: 600;
+    }
+    .ncd-green {
+      background: #dcfce7;
+      color: #166534;
+      font-weight: 600;
+    }
+
+    /* Warrant / closed rows */
+    .row-warrant {
+      background: #fef2f2;
+    }
+    .row-closed {
+      opacity: 0.6;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.1rem 0.35rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      margin-left: 0.25rem;
+    }
+    .badge-warrant {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    .badge-closed {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
     /* Modal styles */
     .modal-overlay {
       position: fixed;
@@ -182,6 +248,13 @@
     }
     .note-date {
       font-weight: 600;
+    }
+    .checkbox-inline {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
     }
 
     @media (max-width: 700px) {
@@ -272,7 +345,27 @@
 
       <div class="field search-input">
         <label for="search">Filter Cases</label>
-        <input id="search" placeholder="Search by client, docket, notes...">
+        <input id="search" placeholder="Search by client, docket, ADA, notes...">
+      </div>
+    </div>
+
+    <div class="filters-row">
+      <div class="field-inline">
+        <label for="sortMode">Sort by</label>
+        <select id="sortMode">
+          <option value="client">Client (A → Z)</option>
+          <option value="ncd">NCD (soonest first)</option>
+        </select>
+      </div>
+      <div class="checkbox-group">
+        <label>
+          <input type="checkbox" id="showWarrant">
+          Show warrant cases
+        </label>
+        <label>
+          <input type="checkbox" id="showClosed">
+          Show closed cases
+        </label>
       </div>
     </div>
 
@@ -299,7 +392,7 @@
       LocalStorage + encrypted backups are where you should store real client names.
       Supabase sync is a beta cloud mirror: keep identifiers anonymized until IT blesses it.
       Weekends are auto-adjusted; holidays are not yet coded.
-      Click any row to open full case details (Assigned ADA, note log, etc.).
+      Click any row to open full case details (Assigned ADA, note log, warrant/closed flags, etc.).
     </p>
   </div>
 
@@ -356,6 +449,17 @@
           <label for="modalAda">Assigned ADA</label>
           <input id="modalAda" placeholder="ADA Name">
         </div>
+      </div>
+
+      <div class="checkbox-inline">
+        <label>
+          <input type="checkbox" id="modalWarrant">
+          Warrant
+        </label>
+        <label>
+          <input type="checkbox" id="modalClosed">
+          Closed
+        </label>
       </div>
 
       <div>
@@ -486,6 +590,20 @@
       return { capDays, deadlineStr, tooltip };
     }
 
+    // NCD color class based on proximity
+    function ncdClass(nextCourtDateStr) {
+      if (!nextCourtDateStr) return '';
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const ncd = parseLocalDate(nextCourtDateStr);
+      ncd.setHours(0,0,0,0);
+      const diffMs = ncd - today;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) return 'ncd-red';        // in the past
+      if (diffDays <= 7) return 'ncd-yellow';    // within a week
+      return 'ncd-green';                        // more than a week away
+    }
+
     // --- Local storage helpers ---
 
     function loadCases() {
@@ -493,7 +611,6 @@
       if (!raw) return [];
       try {
         const arr = JSON.parse(raw);
-        // normalize new fields
         return arr.map(c => ({
           id: c.id,
           clientName: c.clientName || '',
@@ -505,7 +622,9 @@
           nextCourtDate: c.nextCourtDate || '',
           courtPart: c.courtPart || '',
           assignedAda: c.assignedAda || '',
-          noteEntries: Array.isArray(c.noteEntries) ? c.noteEntries : []
+          noteEntries: Array.isArray(c.noteEntries) ? c.noteEntries : [],
+          warrant: !!c.warrant,
+          closed: !!c.closed
         }));
       } catch {
         return [];
@@ -528,12 +647,64 @@
       }
     }
 
+    function compareByClient(a, b) {
+      return (a.clientName || '').localeCompare(b.clientName || '', undefined, { sensitivity: 'base' });
+    }
+
+    function compareByNcd(a, b) {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      function score(c) {
+        if (!c.nextCourtDate) return Number.POSITIVE_INFINITY;
+        const d = parseLocalDate(c.nextCourtDate);
+        d.setHours(0,0,0,0);
+        const diffDays = Math.floor((d - today) / (1000 * 60 * 60 * 24));
+        return diffDays;
+      }
+
+      const sa = score(a);
+      const sb = score(b);
+
+      return sa - sb;
+    }
+
     // --- Rendering main table ---
 
     function renderCases() {
       const tbody = document.getElementById('casesBody');
-      const cases = loadCases();
+      let cases = loadCases();
       const filter = document.getElementById('search').value.toLowerCase();
+      const sortMode = document.getElementById('sortMode').value;
+      const showWarrant = document.getElementById('showWarrant').checked;
+      const showClosed = document.getElementById('showClosed').checked;
+
+      // filter by warrant/closed flags
+      cases = cases.filter(c => {
+        if (c.closed && !showClosed) return false;
+        if (c.warrant && !showWarrant) return false;
+        return true;
+      });
+
+      // text filter
+      if (filter) {
+        cases = cases.filter(c => {
+          const combinedText = (
+            c.clientName + ' ' +
+            c.docketNumber + ' ' +
+            (c.notes || '') + ' ' +
+            (c.assignedAda || '')
+          ).toLowerCase();
+          return combinedText.includes(filter);
+        });
+      }
+
+      // sorting
+      if (sortMode === 'ncd') {
+        cases.sort(compareByNcd);
+      } else {
+        cases.sort(compareByClient);
+      }
 
       tbody.innerHTML = '';
 
@@ -543,22 +714,18 @@
         const chargeable = Math.max(0, totalDays - excluded);
 
         const { capDays, deadlineStr, tooltip } = computeCapAndDeadline(c.chargeLevel, c.startDate);
-
-        const combinedText = (
-          c.clientName + ' ' +
-          c.docketNumber + ' ' +
-          (c.notes || '') + ' ' +
-          (c.assignedAda || '')
-        ).toLowerCase();
-
-        if (filter && !combinedText.includes(filter)) {
-          return;
-        }
+        const ncdCls = ncdClass(c.nextCourtDate);
 
         const tr = document.createElement('tr');
+        if (c.warrant) tr.classList.add('row-warrant');
+        if (c.closed) tr.classList.add('row-closed');
+
+        let clientCell = c.clientName;
+        if (c.warrant) clientCell += ' <span class="badge badge-warrant">Warrant</span>';
+        if (c.closed) clientCell += ' <span class="badge badge-closed">Closed</span>';
 
         tr.innerHTML = `
-          <td>${c.clientName}</td>
+          <td>${clientCell}</td>
           <td>${c.docketNumber || ''}</td>
           <td>${chargeTag(c.chargeLevel)}</td>
           <td>${c.startDate || ''}</td>
@@ -567,7 +734,7 @@
           <td>${chargeable}</td>
           <td>${capDays || ''}</td>
           <td title="${tooltip || ''}">${deadlineStr || ''}</td>
-          <td>${c.nextCourtDate || ''}</td>
+          <td class="${ncdCls}">${c.nextCourtDate || ''}</td>
           <td>${c.courtPart || ''}</td>
         `;
 
@@ -577,19 +744,6 @@
 
         tbody.appendChild(tr);
       });
-    }
-
-    function startEditCase(id) {
-      const cases = loadCases();
-      const c = cases.find(c => c.id === id);
-      if (!c) return;
-
-      document.getElementById('clientName').value = c.clientName;
-      document.getElementById('docketNumber').value = c.docketNumber || '';
-      document.getElementById('chargeLevel').value = c.chargeLevel;
-      document.getElementById('startDate').value = c.startDate || '';
-      document.getElementById('excludedDays').value = c.excludedDays || 0;
-      document.getElementById('editingId').value = c.id;
     }
 
     // --- Modal logic ---
@@ -609,6 +763,8 @@
       document.getElementById('modalNcd').value = c.nextCourtDate || '';
       document.getElementById('modalPart').value = c.courtPart || '';
       document.getElementById('modalAda').value = c.assignedAda || '';
+      document.getElementById('modalWarrant').checked = !!c.warrant;
+      document.getElementById('modalClosed').checked = !!c.closed;
 
       document.getElementById('modalNoteDate').value = '';
       document.getElementById('modalNoteText').value = '';
@@ -680,6 +836,8 @@
       c.nextCourtDate = document.getElementById('modalNcd').value;
       c.courtPart = document.getElementById('modalPart').value.trim();
       c.assignedAda = document.getElementById('modalAda').value.trim();
+      c.warrant = document.getElementById('modalWarrant').checked;
+      c.closed = document.getElementById('modalClosed').checked;
 
       saveCases(cases);
       renderCases();
@@ -822,7 +980,9 @@
           next_court_date: c.nextCourtDate || null,
           court_part: c.courtPart || null,
           assigned_ada: c.assignedAda || null,
-          note_entries: c.noteEntries || []
+          note_entries: c.noteEntries || [],
+          warrant: !!c.warrant,
+          closed: !!c.closed
         }));
 
         if (payload.length === 0) {
@@ -884,7 +1044,9 @@
           nextCourtDate: row.next_court_date || '',
           courtPart: row.court_part || '',
           assignedAda: row.assigned_ada || '',
-          noteEntries: Array.isArray(row.note_entries) ? row.note_entries : []
+          noteEntries: Array.isArray(row.note_entries) ? row.note_entries : [],
+          warrant: !!row.warrant,
+          closed: !!row.closed
         }));
 
         saveCases(mapped);
@@ -941,7 +1103,9 @@
           nextCourtDate: '',
           courtPart: '',
           assignedAda: '',
-          noteEntries: []
+          noteEntries: [],
+          warrant: false,
+          closed: false
         });
       }
 
@@ -955,6 +1119,9 @@
     });
 
     document.getElementById('search').addEventListener('input', renderCases);
+    document.getElementById('sortMode').addEventListener('change', renderCases);
+    document.getElementById('showWarrant').addEventListener('change', renderCases);
+    document.getElementById('showClosed').addEventListener('change', renderCases);
 
     document.getElementById('exportBtn').addEventListener('click', exportEncryptedBackup);
     document.getElementById('importBtn').addEventListener('click', () => {
