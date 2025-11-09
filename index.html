@@ -194,6 +194,9 @@
     .row-closed {
       opacity: 0.6;
     }
+    .row-ready {
+      background: #eff6ff;
+    }
     .badge {
       display: inline-block;
       padding: 0.1rem 0.35rem;
@@ -279,7 +282,7 @@
       margin-bottom: 0.4rem;
     }
     .excalc-row input[type="date"] {
-      min-width: 140px;
+      min-width: 120px;
       flex: 1;
     }
     .excalc-days {
@@ -305,7 +308,7 @@
   <div class="app-container">
     <h1>Case Tracker</h1>
 
-    <!-- Local backups + Cloud sync (beta) -->
+    <!-- Local backups + Quick 30.30 calculator -->
     <div class="backup-bar">
       <!-- Local encrypted backups -->
       <div class="backup-section">
@@ -325,30 +328,37 @@
         <div class="small-text" id="backupStatus"></div>
       </div>
 
-      <!-- Cloud sync (beta) -->
+      <!-- Quick 30.30 calculator -->
       <div class="backup-section">
-        <div class="backup-section-title">Cloud sync (beta)</div>
-        <div id="cloudLoginForm">
-          <div class="field">
-            <label>Cloud login</label>
-            <input id="cloudEmail" type="email" placeholder="email@example.com" style="margin-bottom:0.3rem;">
-            <input id="cloudPassword" type="password" placeholder="Password" style="margin-bottom:0.4rem;">
-            <div class="backup-buttons">
-              <button id="cloudSignUp" class="secondary">Sign up</button>
-              <button id="cloudSignIn" class="secondary">Sign in</button>
-            </div>
-          </div>
+        <div class="backup-section-title">Quick 30.30 calculator</div>
+        <div class="field">
+          <label for="quickChargeLevel">Top Charge Level</label>
+          <select id="quickChargeLevel">
+            <option value="">Select...</option>
+            <option value="felony">Felony (6 mo cap)</option>
+            <option value="classA">Class A Misd (90 days)</option>
+            <option value="classB">Class B Misd (60 days)</option>
+            <option value="violation">Violation (30 days)</option>
+          </select>
         </div>
-        <div id="cloudSignedInRow" class="backup-buttons" style="display:none; margin-top:0.4rem;">
-          <span class="small-text" id="cloudUserStatus"></span>
-          <button id="cloudSignOut" class="secondary">Sign out</button>
+        <div class="field">
+          <label for="quickStartDate">Clock Start Date</label>
+          <input id="quickStartDate" type="date">
         </div>
-        <div class="backup-buttons" style="margin-top:0.4rem;">
-          <button id="cloudSaveBtn" class="secondary">Save to Cloud</button>
+
+        <div class="modal-section-title">Excludable windows</div>
+        <p class="small-text">
+          Add any excludable periods. Days are counted as calendar days, inclusive of start and end.
+        </p>
+        <div id="quickExRows"></div>
+        <button type="button" class="secondary small-link" id="quickExAddBtn" style="margin-top:0.3rem;">
+          + Add window
+        </button>
+        <div class="small-text" style="margin-top:0.5rem;">
+          Total excludable days: <span id="quickExTotal">0</span>
         </div>
-        <div class="small-text" id="cloudStatus"></div>
-        <div class="small-text">
-          Note: Client name and docket number will not be uploaded to the cloud.
+        <div class="small-text" style="margin-top:0.25rem;">
+          30.30 deadline: <span id="quickDeadline" title="" style="font-weight:600;"></span>
         </div>
       </div>
     </div>
@@ -403,7 +413,7 @@
             </button>
           </div>
 
-          <!-- Hidden container just to hold the advanced inputs for this case -->
+          <!-- Hidden container for advanced values; edited via modal -->
           <div class="field" id="advancedMainContainer" style="display:none;">
             <input id="definitelyExcludedDays" type="number" min="0" value="0">
             <input id="arguablyExcludedDays" type="number" min="0" value="0">
@@ -453,6 +463,10 @@
         <label>
           <input type="checkbox" id="showClosed">
           Show closed cases
+        </label>
+        <label>
+          <input type="checkbox" id="showReadyOnly">
+          Show ready cases only (COC filed)
         </label>
       </div>
     </div>
@@ -535,7 +549,22 @@
         </div>
       </div>
 
-      <div class="form-row">
+      <div class="modal-section-title">Excludable calculator (this case)</div>
+      <p class="small-text">
+        Use windows to compute excludable time for this case. “Apply to definitely excludable” will update that field.
+      </p>
+      <div id="modalExRows"></div>
+      <button type="button" class="secondary small-link" id="modalExAddBtn" style="margin-top:0.3rem;">
+        + Add window
+      </button>
+      <div class="small-text" style="margin-top:0.5rem;">
+        Total excludable days from calculator: <span id="modalExTotal">0</span>
+      </div>
+      <button type="button" class="secondary small-link" style="margin-top:0.3rem;" onclick="applyModalExToDef()">
+        Apply total to definitely excludable
+      </button>
+
+      <div class="form-row" style="margin-top:1rem;">
         <div class="field">
           <label for="modalNcd">Next Court Date (NCD)</label>
           <input id="modalNcd" type="date">
@@ -565,6 +594,22 @@
         </label>
       </div>
 
+      <div class="form-row" style="margin-top:0.75rem;">
+        <div class="field">
+          <label>
+            <input type="checkbox" id="modalCocFiled">
+            COC filed
+          </label>
+          <div class="small-text">
+            When a COC is filed, the clock stops as of that date.
+          </div>
+        </div>
+        <div class="field">
+          <label for="modalCocDate">COC date</label>
+          <input id="modalCocDate" type="date">
+        </div>
+      </div>
+
       <div>
         <div class="modal-section-title">Notes</div>
         <ul id="modalNotesList" class="notes-list"></ul>
@@ -588,7 +633,7 @@
     </div>
   </div>
 
-  <!-- Advanced excludable modal + calculator -->
+  <!-- Advanced excludable modal for main form -->
   <div id="advExModal" class="modal-overlay">
     <div class="modal">
       <div class="modal-header">
@@ -632,28 +677,11 @@
   <!-- CryptoJS for AES encryption of backups -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
 
-  <!-- Supabase JS library + client init -->
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-  <script>
-    const SUPABASE_URL = "https://pzktoyskgxwbvsauusjg.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6a3RveXNrZ3h3YnZzYXV1c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEyNTEsImV4cCI6MjA3ODE3NzI1MX0.paUrNO010jaGoVIzl9ejIAIQr64MsIsVLTXfEQSuzew";
-
-    let supabaseClient = null;
-    try {
-      if (window.supabase && window.supabase.createClient) {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      } else {
-        console.error("Supabase JS SDK not available; cloud sync disabled.");
-      }
-    } catch (e) {
-      console.error("Error initializing Supabase; cloud sync disabled.", e);
-      supabaseClient = null;
-    }
-  </script>
-
   <script>
     let currentModalCaseId = null;
     let exCalcRowCounter = 0;
+    let modalExRowCounter = 0;
+    let quickExRowCounter = 0;
 
     // --- Date helpers ---
 
@@ -704,7 +732,7 @@
       return d;
     }
 
-    // --- Holiday helpers (approx NY/US court holidays) ---
+    // --- Holiday + weekend helpers ---
 
     function isSameDay(d1, d2) {
       return (
@@ -722,7 +750,7 @@
     }
 
     function lastWeekdayOfMonth(year, month, weekday) {
-      let d = new Date(year, month + 1, 0); // last day of month
+      let d = new Date(year, month + 1, 0);
       const diff = (d.getDay() - weekday + 7) % 7;
       d.setDate(d.getDate() - diff);
       return d;
@@ -735,18 +763,42 @@
         return isSameDay(date, dt);
       }
 
-      // New Year's Day (Jan 1, observed Monday if Sunday)
+      // New Year's Day (observed if Sunday)
       const newYears = new Date(y, 0, 1);
       const newYearsObserved = (newYears.getDay() === 0)
         ? new Date(y, 0, 2)
         : newYears;
       if (isDate(newYearsObserved)) return "New Year's Day";
 
-      // Martin Luther King Jr. Day – third Monday in January
+      // Juneteenth (June 19, observed if Sunday)
+      const juneteenth = new Date(y, 5, 19);
+      const juneteenthObserved =
+        juneteenth.getDay() === 0 ? new Date(y, 5, 20) : juneteenth;
+      if (isDate(juneteenthObserved)) return "Juneteenth";
+
+      // Independence Day (July 4, observed if Sunday)
+      const july4 = new Date(y, 6, 4);
+      const july4Observed =
+        july4.getDay() === 0 ? new Date(y, 6, 5) : july4;
+      if (isDate(july4Observed)) return "Independence Day";
+
+      // Veterans Day (Nov 11, observed if Sunday)
+      const veterans = new Date(y, 10, 11);
+      const veteransObserved =
+        veterans.getDay() === 0 ? new Date(y, 10, 12) : veterans;
+      if (isDate(veteransObserved)) return "Veterans Day";
+
+      // Christmas Day (Dec 25, observed if Sunday)
+      const christmas = new Date(y, 11, 25);
+      const christmasObserved =
+        christmas.getDay() === 0 ? new Date(y, 11, 26) : christmas;
+      if (isDate(christmasObserved)) return "Christmas Day";
+
+      // MLK Day – 3rd Monday in January
       const mlk = nthWeekdayOfMonth(y, 0, 1, 3);
       if (isDate(mlk)) return "Martin Luther King Jr. Day";
 
-      // Presidents' Day – third Monday in February
+      // Presidents' Day – 3rd Monday in February
       const presidents = nthWeekdayOfMonth(y, 1, 1, 3);
       if (isDate(presidents)) return "Presidents' Day";
 
@@ -754,41 +806,17 @@
       const memorial = lastWeekdayOfMonth(y, 4, 1);
       if (isDate(memorial)) return "Memorial Day";
 
-      // Juneteenth – June 19 (observed Monday if Sunday)
-      const juneteenth = new Date(y, 5, 19);
-      const juneteenthObserved =
-        juneteenth.getDay() === 0 ? new Date(y, 5, 20) : juneteenth;
-      if (isDate(juneteenthObserved)) return "Juneteenth";
-
-      // Independence Day – July 4 (observed Monday if Sunday)
-      const july4 = new Date(y, 6, 4);
-      const july4Observed =
-        july4.getDay() === 0 ? new Date(y, 6, 5) : july4;
-      if (isDate(july4Observed)) return "Independence Day";
-
-      // Labor Day – first Monday in September
+      // Labor Day – 1st Monday in September
       const labor = nthWeekdayOfMonth(y, 8, 1, 1);
       if (isDate(labor)) return "Labor Day";
 
-      // Columbus Day – second Monday in October
+      // Columbus Day – 2nd Monday in October
       const columbus = nthWeekdayOfMonth(y, 9, 1, 2);
       if (isDate(columbus)) return "Columbus Day";
 
-      // Veterans Day – Nov 11 (observed Monday if Sunday)
-      const veterans = new Date(y, 10, 11);
-      const veteransObserved =
-        veterans.getDay() === 0 ? new Date(y, 10, 12) : veterans;
-      if (isDate(veteransObserved)) return "Veterans Day";
-
-      // Thanksgiving – fourth Thursday in November
+      // Thanksgiving – 4th Thursday in November
       const thanksgiving = nthWeekdayOfMonth(y, 10, 4, 4);
       if (isDate(thanksgiving)) return "Thanksgiving Day";
-
-      // Christmas Day – Dec 25 (observed Monday if Sunday)
-      const christmas = new Date(y, 11, 25);
-      const christmasObserved =
-        christmas.getDay() === 0 ? new Date(y, 11, 26) : christmas;
-      if (isDate(christmasObserved)) return "Christmas Day";
 
       return "";
     }
@@ -797,7 +825,6 @@
       const d = new Date(baseDate.getTime());
       let tooltip = "";
 
-      // Weekend first
       if (d.getDay() === 6) {
         d.setDate(d.getDate() + 2);
         tooltip = "Adjusted for deadline falling on Saturday";
@@ -805,7 +832,6 @@
         d.setDate(d.getDate() + 1);
         tooltip = "Adjusted for deadline falling on Sunday";
       } else {
-        // Weekday: shift off holidays until we land on a non-holiday weekday
         while (true) {
           const name = getHolidayName(d);
           if (!name) break;
@@ -845,6 +871,28 @@
       return { capDays, deadlineStr, tooltip };
     }
 
+    function computeQuickDeadline(level, startDateStr, exDays) {
+      if (!startDateStr || !level) return null;
+      const start = parseLocalDate(startDateStr);
+      let baseDeadline;
+
+      if (level === 'felony') {
+        baseDeadline = addMonthsSameDay(start, 6);
+      } else if (level === 'classA') {
+        baseDeadline = addDays(start, 90);
+      } else if (level === 'classB') {
+        baseDeadline = addDays(start, 60);
+      } else if (level === 'violation') {
+        baseDeadline = addDays(start, 30);
+      } else {
+        return null;
+      }
+
+      const extended = addDays(baseDeadline, exDays || 0);
+      const { adjustedDate, tooltip } = adjustForWeekendOrHoliday(extended);
+      return { dateStr: formatDate(adjustedDate), tooltip };
+    }
+
     function ncdClass(nextCourtDateStr) {
       if (!nextCourtDateStr) return '';
       const today = new Date();
@@ -882,7 +930,9 @@
           warrant: !!c.warrant,
           closed: !!c.closed,
           clockStopped: !!c.clockStopped,
-          frozenTotalDays: typeof c.frozenTotalDays === 'number' ? c.frozenTotalDays : null
+          frozenTotalDays: typeof c.frozenTotalDays === 'number' ? c.frozenTotalDays : null,
+          cocFiled: !!c.cocFiled,
+          cocDate: c.cocDate || ''
         }));
       } catch {
         return [];
@@ -935,9 +985,11 @@
       const sortMode = document.getElementById('sortMode').value;
       const showWarrant = document.getElementById('showWarrant').checked;
       const showClosed = document.getElementById('showClosed').checked;
+      const showReadyOnly = document.getElementById('showReadyOnly').checked;
       const excludeMode = document.getElementById('excludeMode').value;
 
       cases = cases.filter(c => {
+        if (showReadyOnly && !c.cocFiled) return false;
         if (c.closed && !showClosed) return false;
         if (c.warrant && !showWarrant) return false;
         return true;
@@ -964,8 +1016,16 @@
       tbody.innerHTML = '';
 
       cases.forEach(c => {
-        const baseTotal = daysBetween(c.startDate);
-        const totalDays = c.clockStopped && c.frozenTotalDays != null ? c.frozenTotalDays : baseTotal;
+        let totalDays;
+        if (c.cocFiled && c.cocDate && c.startDate) {
+          const s = parseLocalDate(c.startDate);
+          const d = parseLocalDate(c.cocDate);
+          totalDays = Math.max(0, daysBetweenDates(s, d));
+        } else if (c.clockStopped && c.frozenTotalDays != null) {
+          totalDays = c.frozenTotalDays;
+        } else {
+          totalDays = daysBetween(c.startDate);
+        }
 
         const simpleExcluded = Number(c.excludedDays) || 0;
         const defEx = Number(c.definitelyExcludedDays) || 0;
@@ -992,11 +1052,13 @@
         const tr = document.createElement('tr');
         if (c.warrant) tr.classList.add('row-warrant');
         if (c.closed) tr.classList.add('row-closed');
+        if (c.cocFiled) tr.classList.add('row-ready');
 
         let clientCell = c.clientName;
         if (c.warrant) clientCell += ' <span class="badge badge-warrant">Warrant</span>';
         if (c.closed) clientCell += ' <span class="badge badge-closed">Closed</span>';
         if (c.clockStopped) clientCell += ' <span class="badge" style="background:#e0f2fe;color:#1d4ed8;">Clock stopped</span>';
+        if (c.cocFiled) clientCell += ' <span class="badge" style="background:#dbeafe;color:#1d4ed8;">READY (COC filed)</span>';
 
         tr.innerHTML = `
           <td>${clientCell}</td>
@@ -1020,7 +1082,7 @@
       });
     }
 
-    // --- Modal logic (case details) ---
+    // --- Case modal logic ---
 
     function openCaseModal(id) {
       const cases = loadCases();
@@ -1042,6 +1104,8 @@
       document.getElementById('modalClockStopped').checked = !!c.clockStopped;
       document.getElementById('modalWarrant').checked = !!c.warrant;
       document.getElementById('modalClosed').checked = !!c.closed;
+      document.getElementById('modalCocFiled').checked = !!c.cocFiled;
+      document.getElementById('modalCocDate').value = c.cocDate || '';
 
       document.getElementById('modalNoteDate').value = '';
       document.getElementById('modalNoteText').value = '';
@@ -1055,6 +1119,7 @@
         advModal.style.display = 'none';
       }
 
+      resetModalExCalc();
       document.getElementById('caseModal').style.display = 'flex';
     }
 
@@ -1135,6 +1200,8 @@
       c.clockStopped = newClockStopped;
       c.warrant = document.getElementById('modalWarrant').checked;
       c.closed = document.getElementById('modalClosed').checked;
+      c.cocFiled = document.getElementById('modalCocFiled').checked;
+      c.cocDate = document.getElementById('modalCocDate').value;
 
       saveCases(cases);
       renderCases();
@@ -1151,7 +1218,7 @@
       closeCaseModal();
     }
 
-    // --- Advanced excludable modal + calculator (main form) ---
+    // --- Advanced excludable modal (main form) ---
 
     function openAdvExModal() {
       const defHidden = document.getElementById('definitelyExcludedDays');
@@ -1217,7 +1284,7 @@
     }
 
     function recalcExCalcTotals() {
-      const rows = Array.from(document.querySelectorAll('.excalc-row'));
+      const rows = Array.from(document.querySelectorAll('#exCalcRows .excalc-row'));
       let total = 0;
 
       rows.forEach(row => {
@@ -1236,6 +1303,154 @@
       });
 
       document.getElementById('exCalcTotal').textContent = String(total);
+    }
+
+    // --- Modal excludable calculator (per case) ---
+
+    function resetModalExCalc() {
+      const container = document.getElementById('modalExRows');
+      container.innerHTML = '';
+      modalExRowCounter = 0;
+      addModalExRow();
+      recalcModalExTotals();
+    }
+
+    function addModalExRow() {
+      const container = document.getElementById('modalExRows');
+      const rowId = ++modalExRowCounter;
+      const row = document.createElement('div');
+      row.className = 'excalc-row';
+      row.dataset.rowId = rowId;
+
+      row.innerHTML = `
+        <input type="date" class="modal-ex-start">
+        <input type="date" class="modal-ex-end">
+        <span class="excalc-days">0 days</span>
+        <button type="button" class="secondary small-link modal-ex-remove" title="Remove window">×</button>
+      `;
+
+      const startInput = row.querySelector('.modal-ex-start');
+      const endInput = row.querySelector('.modal-ex-end');
+      const removeBtn = row.querySelector('.modal-ex-remove');
+
+      startInput.addEventListener('change', recalcModalExTotals);
+      endInput.addEventListener('change', recalcModalExTotals);
+      removeBtn.addEventListener('click', () => {
+        row.remove();
+        recalcModalExTotals();
+      });
+
+      container.appendChild(row);
+    }
+
+    function recalcModalExTotals() {
+      const rows = Array.from(document.querySelectorAll('#modalExRows .excalc-row'));
+      let total = 0;
+
+      rows.forEach(row => {
+        const startVal = row.querySelector('.modal-ex-start').value;
+        const endVal = row.querySelector('.modal-ex-end').value;
+        let days = 0;
+        if (startVal && endVal) {
+          const s = parseLocalDate(startVal);
+          const e = parseLocalDate(endVal);
+          if (e >= s) {
+            days = daysBetweenDates(s, e) + 1;
+          }
+        }
+        row.querySelector('.excalc-days').textContent = `${days} day${days === 1 ? '' : 's'}`;
+        total += days;
+      });
+
+      document.getElementById('modalExTotal').textContent = String(total);
+    }
+
+    function applyModalExToDef() {
+      const total = Number(document.getElementById('modalExTotal').textContent) || 0;
+      document.getElementById('modalDefExcluded').value = String(total);
+    }
+
+    // --- Quick 30.30 calculator ---
+
+    function resetQuickExCalc() {
+      const container = document.getElementById('quickExRows');
+      container.innerHTML = '';
+      quickExRowCounter = 0;
+      addQuickExRow();
+      recalcQuickExTotals();
+    }
+
+    function addQuickExRow() {
+      const container = document.getElementById('quickExRows');
+      const rowId = ++quickExRowCounter;
+      const row = document.createElement('div');
+      row.className = 'excalc-row';
+      row.dataset.rowId = rowId;
+
+      row.innerHTML = `
+        <input type="date" class="quick-ex-start">
+        <input type="date" class="quick-ex-end">
+        <span class="excalc-days">0 days</span>
+        <button type="button" class="secondary small-link quick-ex-remove" title="Remove window">×</button>
+      `;
+
+      const startInput = row.querySelector('.quick-ex-start');
+      const endInput = row.querySelector('.quick-ex-end');
+      const removeBtn = row.querySelector('.quick-ex-remove');
+
+      startInput.addEventListener('change', recalcQuickExTotals);
+      endInput.addEventListener('change', recalcQuickExTotals);
+      removeBtn.addEventListener('click', () => {
+        row.remove();
+        recalcQuickExTotals();
+      });
+
+      container.appendChild(row);
+    }
+
+    function recalcQuickExTotals() {
+      const rows = Array.from(document.querySelectorAll('#quickExRows .excalc-row'));
+      let total = 0;
+
+      rows.forEach(row => {
+        const startVal = row.querySelector('.quick-ex-start').value;
+        const endVal = row.querySelector('.quick-ex-end').value;
+        let days = 0;
+        if (startVal && endVal) {
+          const s = parseLocalDate(startVal);
+          const e = parseLocalDate(endVal);
+          if (e >= s) {
+            days = daysBetweenDates(s, e) + 1;
+          }
+        }
+        row.querySelector('.excalc-days').textContent = `${days} day${days === 1 ? '' : 's'}`;
+        total += days;
+      });
+
+      document.getElementById('quickExTotal').textContent = String(total);
+      updateQuickDeadline();
+    }
+
+    function updateQuickDeadline() {
+      const level = document.getElementById('quickChargeLevel').value;
+      const startStr = document.getElementById('quickStartDate').value;
+      const exDays = Number(document.getElementById('quickExTotal').textContent) || 0;
+      const span = document.getElementById('quickDeadline');
+
+      if (!level || !startStr) {
+        span.textContent = '';
+        span.title = '';
+        return;
+      }
+
+      const res = computeQuickDeadline(level, startStr, exDays);
+      if (!res) {
+        span.textContent = '';
+        span.title = '';
+        return;
+      }
+      span.textContent = res.dateStr;
+      span.title = res.tooltip || '';
     }
 
     // --- Local encrypted backup ---
@@ -1326,258 +1541,6 @@
       reader.readAsText(file);
     }
 
-    // --- Cloud auth helpers ---
-
-    async function getCurrentUser() {
-      if (!supabaseClient) return null;
-      const { data, error } = await supabaseClient.auth.getUser();
-      if (error) {
-        console.error("Error getting current user:", error);
-        return null;
-      }
-      return data.user || null;
-    }
-
-    async function refreshAuthStatus() {
-      const loginForm = document.getElementById('cloudLoginForm');
-      const signedInRow = document.getElementById('cloudSignedInRow');
-      const statusEl = document.getElementById('cloudUserStatus');
-
-      const user = await getCurrentUser();
-
-      if (user) {
-        if (loginForm) loginForm.style.display = 'block';
-        if (loginForm) loginForm.style.visibility = 'hidden';
-        if (signedInRow) signedInRow.style.display = 'flex';
-        if (statusEl) statusEl.textContent = `Signed in as ${user.email}`;
-      } else {
-        if (loginForm) {
-          loginForm.style.display = 'block';
-          loginForm.style.visibility = 'visible';
-        }
-        if (signedInRow) signedInRow.style.display = 'none';
-        if (statusEl) statusEl.textContent = '';
-      }
-    }
-
-    function setCloudStatus(msg) {
-      document.getElementById('cloudStatus').innerText = msg || '';
-    }
-
-    // --- Supabase sync (secure, per-user; no client/docket in cloud) ---
-
-    async function saveCasesToSupabase() {
-      if (!supabaseClient) {
-        alert('Cloud sync is currently unavailable (Supabase SDK not loaded).');
-        return;
-      }
-
-      const user = await getCurrentUser();
-      if (!user) {
-        alert('Sign in to cloud first (email + password) before saving.');
-        return;
-      }
-
-      const cases = loadCases();
-      if (!confirm(
-        `This will overwrite all rows in cloud storage for ${user.email}. Continue?`
-      )) {
-        return;
-      }
-
-      try {
-        setCloudStatus('Saving to cloud...');
-
-        const { error: delError } = await supabaseClient
-          .from('cases')
-          .delete()
-          .eq('user_id', user.id);
-
-        if (delError) {
-          console.error(delError);
-          setCloudStatus('Error clearing existing rows in cloud for this user.');
-          alert('Error clearing cloud rows for this user. See console.');
-          return;
-        }
-
-        const payload = cases.map(c => ({
-          user_id: user.id,
-          client_name: null,
-          docket_number: null,
-          charge_level: c.chargeLevel,
-          start_date: c.startDate || null,
-          excluded_days: Number(c.excludedDays) || 0,
-          notes: c.notes || null,
-          next_court_date: c.nextCourtDate || null,
-          court_part: c.courtPart || null,
-          assigned_ada: c.assignedAda || null,
-          note_entries: c.noteEntries || [],
-          warrant: !!c.warrant,
-          closed: !!c.closed,
-          clock_stopped: !!c.clockStopped,
-          frozen_total_days: c.frozenTotalDays != null ? c.frozenTotalDays : null,
-          definitely_excluded_days: Number(c.definitelyExcludedDays) || 0,
-          arguably_excluded_days: Number(c.arguablyExcludedDays) || 0
-        }));
-
-        if (payload.length === 0) {
-          setCloudStatus(`No local cases to save; cloud rows for ${user.email} are now cleared.`);
-          alert(`Cloud cleared; no local cases to upload for ${user.email}.`);
-          return;
-        }
-
-        const { error: insError } = await supabaseClient
-          .from('cases')
-          .insert(payload);
-
-        if (insError) {
-          console.error(insError);
-          setCloudStatus('Error saving cases to cloud.');
-          alert('Error saving cases to cloud. See console.');
-          return;
-        }
-
-        setCloudStatus(`Saved current cases to cloud for ${user.email}.`);
-        alert('Saved current cases to cloud.');
-      } catch (err) {
-        console.error(err);
-        setCloudStatus('Unexpected error talking to cloud.');
-        alert('Unexpected error talking to cloud.');
-      }
-    }
-
-    async function loadCasesFromSupabase(silent = false) {
-      if (!supabaseClient) {
-        if (!silent) alert('Cloud sync is currently unavailable (Supabase SDK not loaded).');
-        return;
-      }
-
-      const user = await getCurrentUser();
-      if (!user) {
-        if (!silent) alert('Sign in to cloud first (email + password) before loading.');
-        return;
-      }
-
-      try {
-        setCloudStatus('Loading from cloud...');
-
-        const { data, error } = await supabaseClient
-          .from('cases')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: true });
-
-        if (error) {
-          console.error(error);
-          setCloudStatus('Error loading from cloud.');
-          if (!silent) alert('Error loading from cloud. See console.');
-          return;
-        }
-
-        const rows = data || [];
-        if (rows.length === 0) {
-          setCloudStatus(`No rows found in cloud for ${user.email}.`);
-          if (!silent) alert('Cloud has no cases stored yet for this account.');
-          return;
-        }
-
-        const mapped = rows.map(row => ({
-          id: row.id || ('supabase-' + (row.docket_number || '') + '-' + Math.random().toString(36).slice(2)),
-          clientName: '',          // redacted in cloud
-          docketNumber: '',        // redacted in cloud
-          chargeLevel: row.charge_level || '',
-          startDate: row.start_date || '',
-          excludedDays: String(row.excluded_days ?? 0),
-          notes: row.notes || '',
-          nextCourtDate: row.next_court_date || '',
-          courtPart: row.court_part || '',
-          assignedAda: row.assigned_ada || '',
-          noteEntries: Array.isArray(row.note_entries) ? row.note_entries : [],
-          warrant: !!row.warrant,
-          closed: !!row.closed,
-          clockStopped: !!row.clock_stopped,
-          frozenTotalDays: typeof row.frozen_total_days === 'number' ? row.frozen_total_days : null,
-          definitelyExcludedDays: String(row.definitely_excluded_days ?? 0),
-          arguablyExcludedDays: String(row.arguably_excluded_days ?? 0)
-        }));
-
-        saveCases(mapped);
-        renderCases();
-        setCloudStatus(`Loaded cases from cloud for ${user.email}.`);
-        if (!silent) alert('Loaded cases from cloud into this browser.');
-      } catch (err) {
-        console.error(err);
-        setCloudStatus('Unexpected error talking to cloud.');
-        if (!silent) alert('Unexpected error talking to cloud.');
-      }
-    }
-
-    // --- Cloud auth button handlers ---
-
-    async function handleCloudSignUp() {
-      if (!supabaseClient) {
-        alert('Cloud sync is currently unavailable (Supabase SDK not loaded). Local storage still works.');
-        return;
-      }
-      const email = document.getElementById('cloudEmail').value.trim();
-      const password = document.getElementById('cloudPassword').value;
-      if (!email || !password) {
-        alert('Enter email and password first.');
-        return;
-      }
-
-      const { error } = await supabaseClient.auth.signUp({ email, password });
-      if (error) {
-        console.error(error);
-        alert('Sign up error: ' + error.message);
-        return;
-      }
-
-      alert('Sign up successful. If email confirmations are enabled, check your inbox.');
-      await refreshAuthStatus();
-    }
-
-    async function handleCloudSignIn() {
-      if (!supabaseClient) {
-        alert('Cloud sync is currently unavailable (Supabase SDK not loaded). Local storage still works.');
-        return;
-      }
-
-      const email = document.getElementById('cloudEmail').value.trim();
-      const password = document.getElementById('cloudPassword').value;
-      if (!email || !password) {
-        alert('Enter email and password first.');
-        return;
-      }
-
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if (error) {
-        console.error(error);
-        alert('Sign in error: ' + error.message);
-        return;
-      }
-
-      document.getElementById('cloudPassword').value = '';
-      await refreshAuthStatus();
-      await loadCasesFromSupabase(false);
-    }
-
-    async function handleCloudSignOut() {
-      if (!supabaseClient) {
-        alert('Cloud sync is currently unavailable (Supabase SDK not loaded).');
-        return;
-      }
-
-      const { error } = await supabaseClient.auth.signOut();
-      if (error) {
-        console.error(error);
-        alert('Sign out error: ' + error.message);
-        return;
-      }
-      document.getElementById('cloudPassword').value = '';
-      await refreshAuthStatus();
-    }
-
     // --- Form / events ---
 
     document.getElementById('case-form').addEventListener('submit', function(e) {
@@ -1649,7 +1612,9 @@
           warrant: false,
           closed: false,
           clockStopped,
-          frozenTotalDays: clockStopped ? daysBetween(startDate) : null
+          frozenTotalDays: clockStopped ? daysBetween(startDate) : null,
+          cocFiled: false,
+          cocDate: ''
         };
         cases.push(newCase);
       }
@@ -1670,17 +1635,13 @@
     document.getElementById('excludeMode').addEventListener('change', renderCases);
     document.getElementById('showWarrant').addEventListener('change', renderCases);
     document.getElementById('showClosed').addEventListener('change', renderCases);
+    document.getElementById('showReadyOnly').addEventListener('change', renderCases);
 
     document.getElementById('exportBtn').addEventListener('click', exportEncryptedBackup);
     document.getElementById('importBtn').addEventListener('click', () => {
       document.getElementById('importFile').click();
     });
     document.getElementById('importFile').addEventListener('change', handleImportFile);
-
-    document.getElementById('cloudSaveBtn').addEventListener('click', saveCasesToSupabase);
-    document.getElementById('cloudSignUp').addEventListener('click', handleCloudSignUp);
-    document.getElementById('cloudSignIn').addEventListener('click', handleCloudSignIn);
-    document.getElementById('cloudSignOut').addEventListener('click', handleCloudSignOut);
 
     document.getElementById('advancedMainToggle').addEventListener('click', openAdvExModal);
     document.getElementById('advancedModalToggle').addEventListener('click', () => {
@@ -1691,6 +1652,11 @@
     document.getElementById('exCalcAddBtn').addEventListener('click', () => {
       addExCalcRow();
       recalcExCalcTotals();
+    });
+
+    document.getElementById('modalExAddBtn').addEventListener('click', () => {
+      addModalExRow();
+      recalcModalExTotals();
     });
 
     document.getElementById('caseModal').addEventListener('click', (e) => {
@@ -1705,16 +1671,19 @@
       }
     });
 
-    async function initAuthAndMaybeLoad() {
-      await refreshAuthStatus();
-      const user = await getCurrentUser();
-      if (user) {
-        await loadCasesFromSupabase(true);
-      }
-    }
+    // Quick calculator events
+    document.getElementById('quickExAddBtn').addEventListener('click', () => {
+      addQuickExRow();
+      recalcQuickExTotals();
+    });
+    document.getElementById('quickChargeLevel').addEventListener('change', updateQuickDeadline);
+    document.getElementById('quickStartDate').addEventListener('change', updateQuickDeadline);
 
+    // Initial setup
     renderCases();
-    initAuthAndMaybeLoad();
+    resetExCalc();
+    resetModalExCalc();
+    resetQuickExCalc();
   </script>
 </body>
 </html>
