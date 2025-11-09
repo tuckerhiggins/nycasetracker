@@ -484,14 +484,19 @@
           <option value="defPlusArg">Definitely + arguably excludable</option>
         </select>
       </div>
-      <div class="field-inline">
-        <label for="minCasesBusy">Busy day: more than this many cases</label>
-        <input id="minCasesBusy" type="number" min="1" value="1">
+
+      <!-- Busy thresholds: shown only when busy filter is on -->
+      <div id="busyThresholds" style="display:none;flex-wrap:wrap;gap:0.75rem;">
+        <div class="field-inline">
+          <label for="minCasesBusy">Busy day: more than this many cases</label>
+          <input id="minCasesBusy" type="number" min="1" value="3">
+        </div>
+        <div class="field-inline">
+          <label for="minPartsBusy">…in more than this many parts</label>
+          <input id="minPartsBusy" type="number" min="1" value="2">
+        </div>
       </div>
-      <div class="field-inline">
-        <label for="minPartsBusy">…in more than this many parts</label>
-        <input id="minPartsBusy" type="number" min="1" value="1">
-      </div>
+
       <div class="checkbox-group">
         <label>
           <input type="checkbox" id="showWarrant">
@@ -514,6 +519,9 @@
         Show cases with to-dos
       </button>
     </div>
+
+    <!-- Busy day summary -->
+    <div id="busySummary" class="small-text" style="margin-top:0.25rem;margin-bottom:0.25rem;"></div>
 
     <table>
       <thead>
@@ -1133,6 +1141,68 @@
       return compareByClient(a, b);
     }
 
+    // --- Busy day summary ---
+
+    function updateBusySummary(casesForSummary) {
+      const el = document.getElementById('busySummary');
+      if (!el) return;
+
+      if (!casesForSummary || casesForSummary.length === 0) {
+        el.textContent = 'No cases stored yet.';
+        return;
+      }
+
+      const minCasesInput = document.getElementById('minCasesBusy');
+      const minPartsInput = document.getElementById('minPartsBusy');
+      const minCases = Math.max(1, parseInt(minCasesInput?.value, 10) || 3);
+      const minParts = Math.max(1, parseInt(minPartsInput?.value, 10) || 2);
+
+      const stats = {};
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      casesForSummary.forEach(c => {
+        if (!c.nextCourtDate) return;
+        const d = parseLocalDate(c.nextCourtDate);
+        d.setHours(0,0,0,0);
+        if (d < today) return; // only upcoming
+        const key = c.nextCourtDate;
+        if (!stats[key]) stats[key] = { count: 0, parts: new Set() };
+        stats[key].count++;
+        if (c.courtPart) stats[key].parts.add(c.courtPart);
+      });
+
+      const entries = Object.keys(stats).map(dateStr => {
+        const info = stats[dateStr];
+        const isBusy = (info.count > minCases) || (info.parts.size > minParts);
+        return { dateStr, count: info.count, parts: info.parts, isBusy };
+      }).filter(e => e.isBusy);
+
+      if (entries.length === 0) {
+        el.textContent = `No upcoming busy days (defined as more than ${minCases} cases or more than ${minParts} parts on the same day).`;
+        return;
+      }
+
+      entries.sort((a, b) => parseLocalDate(a.dateStr) - parseLocalDate(b.dateStr));
+
+      const maxShown = 5;
+      const snippets = entries.slice(0, maxShown).map(e => {
+        const d = parseLocalDate(e.dateStr);
+        const label = formatDateWithWeekday(d);
+        const partsCount = e.parts.size;
+        return `${label}: ${e.count} case${e.count === 1 ? '' : 's'} in ${partsCount || 0} part${partsCount === 1 ? '' : 's'}`;
+      });
+
+      let tail = '';
+      if (entries.length > maxShown) {
+        const remaining = entries.length - maxShown;
+        tail = `, plus ${remaining} more busy day${remaining === 1 ? '' : 's'}`;
+      }
+
+      el.textContent = 'Upcoming busy days: ' + snippets.join('; ') + tail +
+        `. (Busy = >${minCases} cases or >${minParts} parts.)`;
+    }
+
     // --- Rendering main table ---
 
     function renderCases() {
@@ -1145,8 +1215,8 @@
       const showReadyOnly = document.getElementById('showReadyOnly').checked;
       const excludeMode = document.getElementById('excludeMode').value;
       const applyBusy = document.getElementById('applyBusyFilter').checked;
-      const minCasesBusy = Math.max(1, parseInt(document.getElementById('minCasesBusy').value) || 1);
-      const minPartsBusy = Math.max(1, parseInt(document.getElementById('minPartsBusy').value) || 1);
+      const minCasesBusy = Math.max(1, parseInt(document.getElementById('minCasesBusy').value) || 3);
+      const minPartsBusy = Math.max(1, parseInt(document.getElementById('minPartsBusy').value) || 2);
 
       // Base filters: ready / warrant / closed
       cases = cases.filter(c => {
@@ -1170,6 +1240,10 @@
           return combinedText.includes(filter);
         });
       }
+
+      // Update busy-day summary BEFORE applying busy filter / to-do filter
+      const casesForSummary = cases.slice();
+      updateBusySummary(casesForSummary);
 
       // Busy-day filter
       if (applyBusy) {
@@ -2346,9 +2420,17 @@
     document.getElementById('showWarrant').addEventListener('change', renderCases);
     document.getElementById('showClosed').addEventListener('change', renderCases);
     document.getElementById('showReadyOnly').addEventListener('change', renderCases);
-    document.getElementById('applyBusyFilter').addEventListener('change', renderCases);
     document.getElementById('minCasesBusy').addEventListener('change', renderCases);
     document.getElementById('minPartsBusy').addEventListener('change', renderCases);
+
+    document.getElementById('applyBusyFilter').addEventListener('change', (e) => {
+      const checked = e.target.checked;
+      const container = document.getElementById('busyThresholds');
+      if (container) {
+        container.style.display = checked ? 'flex' : 'none';
+      }
+      renderCases();
+    });
 
     document.getElementById('exportBtn').addEventListener('click', exportEncryptedBackup);
     document.getElementById('importBtn').addEventListener('click', () => {
@@ -2407,14 +2489,6 @@
         row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'block' : 'none';
       });
     }
-
-    // Quick calculator events
-    document.getElementById('quickExAddBtn').addEventListener('click', () => {
-      addQuickExRow();
-      recalcQuickExTotals();
-    });
-    document.getElementById('quickChargeLevel').addEventListener('change', updateQuickDeadline);
-    document.getElementById('quickStartDate').addEventListener('change', updateQuickDeadline);
 
     const showTodosBtn = document.getElementById('showTodosBtn');
     if (showTodosBtn) {
