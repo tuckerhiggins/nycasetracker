@@ -694,38 +694,171 @@
       return d;
     }
 
-    function adjustForWeekend(date) {
-      const d = new Date(date.getTime());
-      const dow = d.getDay();
-      if (dow === 6) {
-        d.setDate(d.getDate() + 2);
-      } else if (dow === 0) {
-        d.setDate(d.getDate() + 1);
-      }
-      return d;
+    // --- Holiday helpers (NY-style, approx US/NY court holidays) ---
+
+function isSameDay(d1, d2) {
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+}
+
+function nthWeekdayOfMonth(year, month, weekday, n) {
+  // weekday: 0 = Sun ... 6 = Sat
+  let d = new Date(year, month, 1);
+  const diff = (weekday - d.getDay() + 7) % 7;
+  d.setDate(1 + diff + 7 * (n - 1));
+  return d;
+}
+
+function lastWeekdayOfMonth(year, month, weekday) {
+  let d = new Date(year, month + 1, 0); // last day of month
+  const diff = (d.getDay() - weekday + 7) % 7;
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+/**
+ * Return the holiday name if the given date is a recognized court holiday
+ * (including the observed weekday where applicable). Otherwise return "".
+ */
+function getHolidayName(date) {
+  const y = date.getFullYear();
+  const m = date.getMonth(); // 0-11
+  const d = date.getDate();
+  const dow = date.getDay();
+
+  // Helper to compare quickly
+  function isDate(dt) {
+    return isSameDay(date, dt);
+  }
+
+  // Fixed-date holidays (with simple "observed" handling in same year)
+  const newYears = new Date(y, 0, 1);
+  // If Jan 1 is Sunday, courts typically observe Monday Jan 2
+  const newYearsObserved = (newYears.getDay() === 0)
+    ? new Date(y, 0, 2)
+    : newYears;
+
+  if (isDate(newYearsObserved)) return "New Year's Day";
+
+  // Juneteenth (June 19), observed Monday if Sunday
+  const juneteenth = new Date(y, 5, 19);
+  const juneteenthObserved =
+    juneteenth.getDay() === 0 ? new Date(y, 5, 20) : juneteenth;
+  if (isDate(juneteenthObserved)) return "Juneteenth";
+
+  // Independence Day (July 4), observed Monday if Sunday
+  const july4 = new Date(y, 6, 4);
+  const july4Observed =
+    july4.getDay() === 0 ? new Date(y, 6, 5) : july4;
+  if (isDate(july4Observed)) return "Independence Day";
+
+  // Veterans Day (Nov 11), observed Monday if Sunday
+  const veterans = new Date(y, 10, 11);
+  const veteransObserved =
+    veterans.getDay() === 0 ? new Date(y, 10, 12) : veterans;
+  if (isDate(veteransObserved)) return "Veterans Day";
+
+  // Christmas Day (Dec 25), observed Monday if Sunday
+  const christmas = new Date(y, 11, 25);
+  const christmasObserved =
+    christmas.getDay() === 0 ? new Date(y, 11, 26) : christmas;
+  if (isDate(christmasObserved)) return "Christmas Day";
+
+  // Moving holidays commonly observed by NY courts
+
+  // Martin Luther King Jr Day – third Monday in January
+  const mlk = nthWeekdayOfMonth(y, 0, 1, 3); // Jan, Monday, 3rd
+  if (isDate(mlk)) return "Martin Luther King Jr. Day";
+
+  // Presidents' Day – third Monday in February
+  const presidents = nthWeekdayOfMonth(y, 1, 1, 3);
+  if (isDate(presidents)) return "Presidents' Day";
+
+  // Memorial Day – last Monday in May
+  const memorial = lastWeekdayOfMonth(y, 4, 1);
+  if (isDate(memorial)) return "Memorial Day";
+
+  // Labor Day – first Monday in September
+  const labor = nthWeekdayOfMonth(y, 8, 1, 1);
+  if (isDate(labor)) return "Labor Day";
+
+  // Columbus/Indigenous Peoples’ Day – second Monday in October
+  const columbus = nthWeekdayOfMonth(y, 9, 1, 2);
+  if (isDate(columbus)) return "Columbus Day";
+
+  // Thanksgiving – fourth Thursday in November
+  const thanksgiving = nthWeekdayOfMonth(y, 10, 4, 4); // Thu = 4
+  if (isDate(thanksgiving)) return "Thanksgiving Day";
+
+  // (You can add more NY-specific court holidays here if your office
+  // has a published list.)
+
+  return "";
+}
+
+/**
+ * Adjust a deadline forward off weekends AND holidays (GCL 25-a flavor).
+ * Returns { adjustedDate, tooltip }.
+ */
+function adjustForWeekendOrHoliday(baseDate) {
+  const d = new Date(baseDate.getTime());
+  let tooltip = "";
+
+  // First check pure weekends
+  if (d.getDay() === 6) {
+    // Saturday -> Monday
+    d.setDate(d.getDate() + 2);
+    tooltip = "Adjusted for deadline falling on Saturday";
+  } else if (d.getDay() === 0) {
+    // Sunday -> Monday
+    d.setDate(d.getDate() + 1);
+    tooltip = "Adjusted for deadline falling on Sunday";
+  } else {
+    // Weekday: check holidays (and keep walking forward if needed)
+    while (true) {
+      const name = getHolidayName(d);
+      if (!name) break;
+      d.setDate(d.getDate() + 1); // move to next day
+      tooltip = `Adjusted for ${name}`;
     }
+  }
+
+  return { adjustedDate: d, tooltip };
+}
+
 
     function computeCapAndDeadline(level, startDateStr) {
-      if (!startDateStr) return { capDays: 0, deadlineStr: '', tooltip: '' };
+  if (!startDateStr) return { capDays: 0, deadlineStr: '', tooltip: '' };
 
-      const start = parseLocalDate(startDateStr);
-      let baseDeadline, capDays;
+  const start = parseLocalDate(startDateStr);
+  let baseDeadline, capDays;
 
-      if (level === 'felony') {
-        baseDeadline = addMonthsSameDay(start, 6);
-        capDays = daysBetweenDates(start, baseDeadline);
-      } else if (level === 'classA') {
-        baseDeadline = addDays(start, 90);
-        capDays = 90;
-      } else if (level === 'classB') {
-        baseDeadline = addDays(start, 60);
-        capDays = 60;
-      } else if (level === 'violation') {
-        baseDeadline = addDays(start, 30);
-        capDays = 30;
-      } else {
-        return { capDays: 0, deadlineStr: '', tooltip: '' };
-      }
+  if (level === 'felony') {
+    baseDeadline = addMonthsSameDay(start, 6);
+    capDays = daysBetweenDates(start, baseDeadline);
+  } else if (level === 'classA') {
+    baseDeadline = addDays(start, 90);
+    capDays = 90;
+  } else if (level === 'classB') {
+    baseDeadline = addDays(start, 60);
+    capDays = 60;
+  } else if (level === 'violation') {
+    baseDeadline = addDays(start, 30);
+    capDays = 30;
+  } else {
+    return { capDays: 0, deadlineStr: '', tooltip: '' };
+  }
+
+  // Weekend + holiday adjustment (GCL 25-a style)
+  const { adjustedDate, tooltip } = adjustForWeekendOrHoliday(baseDeadline);
+  const deadlineStr = formatDate(adjustedDate);
+
+  return { capDays, deadlineStr, tooltip };
+}
+
 
       const adjustedDeadline = adjustForWeekend(baseDeadline);
       const adjusted = adjustedDeadline.getTime() !== baseDeadline.getTime();
