@@ -172,7 +172,6 @@
       gap: 0.25rem;
     }
 
-    /* NCD color coding */
     .ncd-red {
       background: #fee2e2;
       color: #b91c1c;
@@ -189,7 +188,6 @@
       font-weight: 600;
     }
 
-    /* Warrant / closed rows */
     .row-warrant {
       background: #fef2f2;
     }
@@ -212,7 +210,6 @@
       color: #374151;
     }
 
-    /* Modal styles */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -274,6 +271,22 @@
       margin-top: 0.5rem;
     }
 
+    .excalc-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.4rem;
+    }
+    .excalc-row input[type="date"] {
+      min-width: 140px;
+      flex: 1;
+    }
+    .excalc-days {
+      font-size: 0.8rem;
+      color: #374151;
+    }
+
     @media (max-width: 700px) {
       table {
         font-size: 0.75rem;
@@ -317,7 +330,7 @@
         <div class="backup-section-title">Cloud sync (beta)</div>
         <div id="cloudLoginForm">
           <div class="field">
-            <label>Supabase login</label>
+            <label>Cloud login</label>
             <input id="cloudEmail" type="email" placeholder="email@example.com" style="margin-bottom:0.3rem;">
             <input id="cloudPassword" type="password" placeholder="Password" style="margin-bottom:0.4rem;">
             <div class="backup-buttons">
@@ -334,6 +347,9 @@
           <button id="cloudSaveBtn" class="secondary">Save to Cloud</button>
         </div>
         <div class="small-text" id="cloudStatus"></div>
+        <div class="small-text">
+          Note: Client name and docket number will not be uploaded to the cloud.
+        </div>
       </div>
     </div>
 
@@ -387,21 +403,10 @@
             </button>
           </div>
 
+          <!-- Hidden container just to hold the advanced inputs for this case -->
           <div class="field" id="advancedMainContainer" style="display:none;">
-            <label>Advanced excludable breakdown (optional)</label>
-            <div class="form-row" style="gap:0.5rem; margin-bottom:0;">
-              <div class="field">
-                <label for="definitelyExcludedDays" style="font-size:0.75rem;">Definitely excludable days</label>
-                <input id="definitelyExcludedDays" type="number" min="0" value="0">
-              </div>
-              <div class="field">
-                <label for="arguablyExcludedDays" style="font-size:0.75rem;">Arguably excludable days</label>
-                <input id="arguablyExcludedDays" type="number" min="0" value="0">
-              </div>
-            </div>
-            <div class="small-text">
-              Excluded & chargeable will follow the global mode below.
-            </div>
+            <input id="definitelyExcludedDays" type="number" min="0" value="0">
+            <input id="arguablyExcludedDays" type="number" min="0" value="0">
           </div>
 
           <div class="field" style="align-self:flex-end;">
@@ -583,6 +588,47 @@
     </div>
   </div>
 
+  <!-- Advanced excludable modal + calculator -->
+  <div id="advExModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Advanced excludable time</h2>
+        <button class="modal-close" onclick="closeAdvExModal()">×</button>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label for="advDefDays">Definitely excludable days</label>
+          <input id="advDefDays" type="number" min="0" value="0">
+        </div>
+        <div class="field">
+          <label for="advArgDays">Arguably excludable days</label>
+          <input id="advArgDays" type="number" min="0" value="0">
+        </div>
+      </div>
+
+      <div class="modal-section-title">Excludable calculator</div>
+      <p class="small-text">
+        Add one or more windows of excludable time. Days are counted as calendar days (inclusive of start and end).
+      </p>
+
+      <div id="exCalcRows"></div>
+
+      <button type="button" class="secondary small-link" id="exCalcAddBtn" style="margin-top:0.3rem;">
+        + Add window
+      </button>
+
+      <div class="small-text" style="margin-top:0.5rem;">
+        Total excludable days from calculator: <span id="exCalcTotal">0</span>
+      </div>
+
+      <div style="margin-top: 1rem; display:flex; justify-content: flex-end; gap:0.5rem;">
+        <button class="secondary" type="button" onclick="applyExCalcToDef()">Use total as definitely excludable</button>
+        <button class="primary" type="button" onclick="saveAdvExAndClose()">Done</button>
+      </div>
+    </div>
+  </div>
+
   <!-- CryptoJS for AES encryption of backups -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
 
@@ -597,12 +643,13 @@
 
   <script>
     let currentModalCaseId = null;
+    let exCalcRowCounter = 0;
 
     // --- Date helpers ---
 
     function parseLocalDate(yyyyMmDd) {
       const [y, m, d] = yyyyMmDd.split('-').map(Number);
-      return new Date(y, m - 1, d); // month is 0-based
+      return new Date(y, m - 1, d);
     }
 
     function formatDate(date) {
@@ -636,7 +683,7 @@
       const day = d.getDate();
       d.setMonth(d.getMonth() + n);
       if (d.getDate() !== day) {
-        d.setDate(0); // snap back to last day of prev month
+        d.setDate(0);
       }
       return d;
     }
@@ -649,11 +696,11 @@
 
     function adjustForWeekend(date) {
       const d = new Date(date.getTime());
-      const dow = d.getDay(); // 0 = Sun, 6 = Sat
+      const dow = d.getDay();
       if (dow === 6) {
-        d.setDate(d.getDate() + 2); // Sat -> Mon
+        d.setDate(d.getDate() + 2);
       } else if (dow === 0) {
-        d.setDate(d.getDate() + 1); // Sun -> Mon
+        d.setDate(d.getDate() + 1);
       }
       return d;
     }
@@ -688,7 +735,6 @@
       return { capDays, deadlineStr, tooltip };
     }
 
-    // NCD color class based on proximity
     function ncdClass(nextCourtDateStr) {
       if (!nextCourtDateStr) return '';
       const today = new Date();
@@ -864,7 +910,7 @@
       });
     }
 
-    // --- Modal logic ---
+    // --- Modal logic (case details) ---
 
     function openCaseModal(id) {
       const cases = loadCases();
@@ -892,7 +938,6 @@
 
       renderModalNotes(c.noteEntries || []);
 
-      // Show advanced section automatically if there are values
       const advModal = document.getElementById('advancedModalContainer');
       if ((Number(c.definitelyExcludedDays) || 0) > 0 || (Number(c.arguablyExcludedDays) || 0) > 0) {
         advModal.style.display = 'flex';
@@ -994,6 +1039,93 @@
       saveCases(cases);
       renderCases();
       closeCaseModal();
+    }
+
+    // --- Advanced excludable modal + calculator (main form) ---
+
+    function openAdvExModal() {
+      const defHidden = document.getElementById('definitelyExcludedDays');
+      const argHidden = document.getElementById('arguablyExcludedDays');
+      document.getElementById('advDefDays').value = defHidden.value || "0";
+      document.getElementById('advArgDays').value = argHidden.value || "0";
+
+      resetExCalc();
+      document.getElementById('advExModal').style.display = 'flex';
+    }
+
+    function closeAdvExModal() {
+      document.getElementById('advExModal').style.display = 'none';
+    }
+
+    function saveAdvExAndClose() {
+      const defHidden = document.getElementById('definitelyExcludedDays');
+      const argHidden = document.getElementById('arguablyExcludedDays');
+      defHidden.value = document.getElementById('advDefDays').value || "0";
+      argHidden.value = document.getElementById('advArgDays').value || "0";
+      closeAdvExModal();
+    }
+
+    function applyExCalcToDef() {
+      const total = Number(document.getElementById('exCalcTotal').textContent) || 0;
+      document.getElementById('advDefDays').value = String(total);
+    }
+
+    function resetExCalc() {
+      const container = document.getElementById('exCalcRows');
+      container.innerHTML = '';
+      exCalcRowCounter = 0;
+      addExCalcRow();
+      recalcExCalcTotals();
+    }
+
+    function addExCalcRow() {
+      const container = document.getElementById('exCalcRows');
+      const rowId = ++exCalcRowCounter;
+      const row = document.createElement('div');
+      row.className = 'excalc-row';
+      row.dataset.rowId = rowId;
+
+      row.innerHTML = `
+        <input type="date" class="excalc-start">
+        <input type="date" class="excalc-end">
+        <span class="excalc-days">0 days</span>
+        <button type="button" class="secondary small-link excalc-remove" title="Remove window">×</button>
+      `;
+
+      const startInput = row.querySelector('.excalc-start');
+      const endInput = row.querySelector('.excalc-end');
+      const removeBtn = row.querySelector('.excalc-remove');
+
+      startInput.addEventListener('change', recalcExCalcTotals);
+      endInput.addEventListener('change', recalcExCalcTotals);
+      removeBtn.addEventListener('click', () => {
+        row.remove();
+        recalcExCalcTotals();
+      });
+
+      container.appendChild(row);
+    }
+
+    function recalcExCalcTotals() {
+      const rows = Array.from(document.querySelectorAll('.excalc-row'));
+      let total = 0;
+
+      rows.forEach(row => {
+        const startVal = row.querySelector('.excalc-start').value;
+        const endVal = row.querySelector('.excalc-end').value;
+        let days = 0;
+        if (startVal && endVal) {
+          const s = parseLocalDate(startVal);
+          const e = parseLocalDate(endVal);
+          if (e >= s) {
+            days = daysBetweenDates(s, e) + 1; // inclusive
+          }
+        }
+        row.querySelector('.excalc-days').textContent = `${days} day${days === 1 ? '' : 's'}`;
+        total += days;
+      });
+
+      document.getElementById('exCalcTotal').textContent = String(total);
     }
 
     // --- Local encrypted backup ---
@@ -1103,11 +1235,15 @@
       const user = await getCurrentUser();
 
       if (user) {
-        if (loginForm) loginForm.style.display = 'none';
+        if (loginForm) loginForm.style.display = 'block'; // keep box height stable on mobile
+        if (loginForm) loginForm.style.visibility = 'hidden'; // hide fields but keep layout
         if (signedInRow) signedInRow.style.display = 'flex';
         if (statusEl) statusEl.textContent = `Signed in as ${user.email}`;
       } else {
-        if (loginForm) loginForm.style.display = 'block';
+        if (loginForm) {
+          loginForm.style.display = 'block';
+          loginForm.style.visibility = 'visible';
+        }
         if (signedInRow) signedInRow.style.display = 'none';
         if (statusEl) statusEl.textContent = '';
       }
@@ -1117,7 +1253,7 @@
       document.getElementById('cloudStatus').innerText = msg || '';
     }
 
-    // --- Supabase sync (secure, per-user) ---
+    // --- Supabase sync (secure, per-user; no client/docket in cloud) ---
 
     async function saveCasesToSupabase() {
       const user = await getCurrentUser();
@@ -1128,13 +1264,13 @@
 
       const cases = loadCases();
       if (!confirm(
-        `This will overwrite all rows in Supabase for ${user.email}. Continue?`
+        `This will overwrite all rows in cloud storage for ${user.email}. Continue?`
       )) {
         return;
       }
 
       try {
-        setCloudStatus('Saving to Supabase...');
+        setCloudStatus('Saving to cloud...');
 
         const { error: delError } = await supabaseClient
           .from('cases')
@@ -1143,15 +1279,15 @@
 
         if (delError) {
           console.error(delError);
-          setCloudStatus('Error clearing existing rows in Supabase for this user.');
-          alert('Error clearing Supabase rows for this user. See console.');
+          setCloudStatus('Error clearing existing rows in cloud for this user.');
+          alert('Error clearing cloud rows for this user. See console.');
           return;
         }
 
         const payload = cases.map(c => ({
           user_id: user.id,
-          client_name: c.clientName,
-          docket_number: c.docketNumber,
+          client_name: null,
+          docket_number: null,
           charge_level: c.chargeLevel,
           start_date: c.startDate || null,
           excluded_days: Number(c.excludedDays) || 0,
@@ -1169,8 +1305,8 @@
         }));
 
         if (payload.length === 0) {
-          setCloudStatus(`No local cases to save; Supabase rows for ${user.email} are now cleared.`);
-          alert(`Supabase cleared; no local cases to upload for ${user.email}.`);
+          setCloudStatus(`No local cases to save; cloud rows for ${user.email} are now cleared.`);
+          alert(`Cloud cleared; no local cases to upload for ${user.email}.`);
           return;
         }
 
@@ -1180,17 +1316,17 @@
 
         if (insError) {
           console.error(insError);
-          setCloudStatus('Error saving cases to Supabase.');
-          alert('Error saving cases to Supabase. See console.');
+          setCloudStatus('Error saving cases to cloud.');
+          alert('Error saving cases to cloud. See console.');
           return;
         }
 
-        setCloudStatus(`Saved current cases to Supabase for ${user.email}.`);
-        alert('Saved current cases to Supabase.');
+        setCloudStatus(`Saved current cases to cloud for ${user.email}.`);
+        alert('Saved current cases to cloud.');
       } catch (err) {
         console.error(err);
-        setCloudStatus('Unexpected error talking to Supabase.');
-        alert('Unexpected error talking to Supabase.');
+        setCloudStatus('Unexpected error talking to cloud.');
+        alert('Unexpected error talking to cloud.');
       }
     }
 
@@ -1202,7 +1338,7 @@
       }
 
       try {
-        setCloudStatus('Loading from Supabase...');
+        setCloudStatus('Loading from cloud...');
 
         const { data, error } = await supabaseClient
           .from('cases')
@@ -1212,22 +1348,22 @@
 
         if (error) {
           console.error(error);
-          setCloudStatus('Error loading from Supabase.');
-          if (!silent) alert('Error loading from Supabase. See console.');
+          setCloudStatus('Error loading from cloud.');
+          if (!silent) alert('Error loading from cloud. See console.');
           return;
         }
 
         const rows = data || [];
         if (rows.length === 0) {
-          setCloudStatus(`No rows found in Supabase for ${user.email}.`);
-          if (!silent) alert('Supabase has no cases stored yet for this account.');
+          setCloudStatus(`No rows found in cloud for ${user.email}.`);
+          if (!silent) alert('Cloud has no cases stored yet for this account.');
           return;
         }
 
         const mapped = rows.map(row => ({
           id: row.id || ('supabase-' + (row.docket_number || '') + '-' + Math.random().toString(36).slice(2)),
-          clientName: row.client_name || '',
-          docketNumber: row.docket_number || '',
+          clientName: '',          // redacted in cloud
+          docketNumber: '',        // redacted in cloud
           chargeLevel: row.charge_level || '',
           startDate: row.start_date || '',
           excludedDays: String(row.excluded_days ?? 0),
@@ -1246,12 +1382,12 @@
 
         saveCases(mapped);
         renderCases();
-        setCloudStatus(`Loaded cases from Supabase for ${user.email}.`);
-        if (!silent) alert('Loaded cases from Supabase into this browser.');
+        setCloudStatus(`Loaded cases from cloud for ${user.email}.`);
+        if (!silent) alert('Loaded cases from cloud into this browser.');
       } catch (err) {
         console.error(err);
-        setCloudStatus('Unexpected error talking to Supabase.');
-        if (!silent) alert('Unexpected error talking to Supabase.');
+        setCloudStatus('Unexpected error talking to cloud.');
+        if (!silent) alert('Unexpected error talking to cloud.');
       }
     }
 
@@ -1390,7 +1526,6 @@
       document.getElementById('excludedDays').value = "0";
       document.getElementById('definitelyExcludedDays').value = "0";
       document.getElementById('arguablyExcludedDays').value = "0";
-      document.getElementById('advancedMainContainer').style.display = 'none';
 
       renderCases();
     });
@@ -1408,30 +1543,33 @@
     document.getElementById('importFile').addEventListener('change', handleImportFile);
 
     document.getElementById('cloudSaveBtn').addEventListener('click', saveCasesToSupabase);
-
     document.getElementById('cloudSignUp').addEventListener('click', handleCloudSignUp);
     document.getElementById('cloudSignIn').addEventListener('click', handleCloudSignIn);
     document.getElementById('cloudSignOut').addEventListener('click', handleCloudSignOut);
 
-    // Advanced toggles
-    document.getElementById('advancedMainToggle').addEventListener('click', () => {
-      const box = document.getElementById('advancedMainContainer');
-      box.style.display = (box.style.display === 'none' || box.style.display === '') ? 'block' : 'none';
-    });
-
+    document.getElementById('advancedMainToggle').addEventListener('click', openAdvExModal);
     document.getElementById('advancedModalToggle').addEventListener('click', () => {
       const box = document.getElementById('advancedModalContainer');
       box.style.display = (box.style.display === 'none' || box.style.display === '') ? 'flex' : 'none';
     });
 
-    // Close modal if clicking outside
+    document.getElementById('exCalcAddBtn').addEventListener('click', () => {
+      addExCalcRow();
+      recalcExCalcTotals();
+    });
+
     document.getElementById('caseModal').addEventListener('click', (e) => {
       if (e.target.id === 'caseModal') {
         closeCaseModal();
       }
     });
 
-    // Init auth UI and silently load from cloud if already signed in
+    document.getElementById('advExModal').addEventListener('click', (e) => {
+      if (e.target.id === 'advExModal') {
+        closeAdvExModal();
+      }
+    });
+
     async function initAuthAndMaybeLoad() {
       await refreshAuthStatus();
       const user = await getCurrentUser();
@@ -1440,7 +1578,6 @@
       }
     }
 
-    // initial render + auth init
     renderCases();
     initAuthAndMaybeLoad();
   </script>
