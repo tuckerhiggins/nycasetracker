@@ -1059,7 +1059,7 @@
       closeCaseModal();
     }
 
-    function deleteCurrentCase() {
+        function deleteCurrentCase() {
       if (!currentModalCaseId) return;
       if (!confirm('Delete this case from your tracker?')) return;
       let cases = loadCases();
@@ -1069,6 +1069,188 @@
       closeCaseModal();
     }
 
-    // (rest of file continues... -- truncated for brevity in tool query)
+    // --- Wire up UI events & initial render ---
 
-  </script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Initial render
+      renderCases();
+
+      // --- Add / Update Case form ---
+      const caseForm = document.getElementById('case-form');
+      if (caseForm) {
+        caseForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+
+          const clientNameEl = document.getElementById('clientName');
+          const docketNumberEl = document.getElementById('docketNumber');
+          const chargeLevelEl = document.getElementById('chargeLevel');
+          const startDateEl = document.getElementById('startDate');
+          const ncdEl = document.getElementById('ncd');
+          const partEl = document.getElementById('part');
+          const excludedDaysEl = document.getElementById('excludedDays');
+          const defExEl = document.getElementById('definitelyExcludedDays');
+          const argExEl = document.getElementById('arguablyExcludedDays');
+          const clockStoppedEl = document.getElementById('clockStopped');
+          const editingIdEl = document.getElementById('editingId');
+
+          const clientName = clientNameEl.value.trim();
+          const chargeLevel = chargeLevelEl.value;
+          const startDate = startDateEl.value;
+
+          if (!clientName) {
+            alert('Client / Case Name is required.');
+            clientNameEl.focus();
+            return;
+          }
+          if (!chargeLevel) {
+            alert('Top Charge Level is required.');
+            chargeLevelEl.focus();
+            return;
+          }
+          if (!startDate) {
+            alert('Clock Start Date is required.');
+            startDateEl.focus();
+            return;
+          }
+
+          let cases = loadCases();
+          const editingId = editingIdEl.value;
+          let caseObj = null;
+
+          if (editingId) {
+            const idx = cases.findIndex(c => c.id === editingId);
+            if (idx !== -1) {
+              caseObj = cases[idx];
+            }
+          }
+
+          if (!caseObj) {
+            caseObj = {
+              id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
+              noteEntries: [],
+              warrant: false,
+              closed: false
+            };
+            cases.push(caseObj);
+          }
+
+          caseObj.clientName = clientName;
+          caseObj.docketNumber = docketNumberEl.value.trim();
+          caseObj.chargeLevel = chargeLevel;
+          caseObj.startDate = startDate;
+          caseObj.excludedDays = excludedDaysEl.value || "0";
+          caseObj.definitelyExcludedDays = defExEl.value || "0";
+          caseObj.arguablyExcludedDays = argExEl.value || "0";
+          caseObj.nextCourtDate = ncdEl.value;
+          caseObj.courtPart = partEl.value;
+          caseObj.assignedAda = caseObj.assignedAda || '';
+          caseObj.clockStopped = !!clockStoppedEl.checked;
+          caseObj.frozenTotalDays = caseObj.clockStopped ? daysBetween(caseObj.startDate) : null;
+          caseObj.warrant = !!caseObj.warrant;
+          caseObj.closed = !!caseObj.closed;
+
+          saveCases(cases);
+
+          // Reset form back to "add new"
+          caseForm.reset();
+          editingIdEl.value = '';
+
+          renderCases();
+        });
+      }
+
+      // --- Local encrypted backup: Export ---
+      const exportBtn = document.getElementById('exportBtn');
+      if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+          const passwordEl = document.getElementById('backupPassword');
+          const statusEl = document.getElementById('backupStatus');
+          const password = passwordEl.value;
+
+          if (!password) {
+            if (statusEl) statusEl.textContent = 'Set a backup password before exporting.';
+            return;
+          }
+
+          const data = JSON.stringify(loadCases());
+          try {
+            const encrypted = CryptoJS.AES.encrypt(data, password).toString();
+            const blob = new Blob([encrypted], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `nyc-case-tracker-backup-${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            if (statusEl) statusEl.textContent = 'Encrypted backup exported.';
+          } catch (err) {
+            console.error(err);
+            if (statusEl) statusEl.textContent = 'Error exporting backup.';
+          }
+        });
+      }
+
+      // --- Local encrypted backup: Import ---
+      const importBtn = document.getElementById('importBtn');
+      const importFileInput = document.getElementById('importFile');
+
+      if (importBtn && importFileInput) {
+        importBtn.addEventListener('click', () => {
+          importFileInput.value = '';
+          importFileInput.click();
+        });
+
+        importFileInput.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          const statusEl = document.getElementById('backupStatus');
+          const passwordEl = document.getElementById('backupPassword');
+          const password = passwordEl.value;
+
+          if (!file) return;
+          if (!password) {
+            if (statusEl) statusEl.textContent = 'Set the same backup password you used to encrypt the file.';
+            return;
+          }
+
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              const encryptedText = reader.result;
+              const bytes = CryptoJS.AES.decrypt(encryptedText, password);
+              const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+              if (!decrypted) throw new Error('Decryption failed (likely wrong password).');
+              const parsed = JSON.parse(decrypted);
+              if (!Array.isArray(parsed)) throw new Error('Backup data is not an array.');
+              saveCases(parsed);
+              renderCases();
+              if (statusEl) statusEl.textContent = 'Backup imported successfully.';
+            } catch (err) {
+              console.error(err);
+              if (statusEl) statusEl.textContent = 'Error importing backup (wrong password or corrupt file).';
+            }
+          };
+          reader.readAsText(file);
+        });
+      }
+
+      // --- Search & filters ---
+      const searchInput = document.getElementById('search');
+      if (searchInput) {
+        searchInput.addEventListener('input', () => renderCases());
+      }
+
+      ['sortMode', 'excludeMode', 'showWarrant', 'showClosed'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', () => renderCases());
+      });
+
+      // --- Advanced excludable toggles ---
+      const advancedMainToggle = document.getElementById('advancedMainToggle');
+      const advancedMainContainer = document.getElementById('advancedMainContainer');
+      if (advancedMainToggle && advancedMainContainer) {
+        advancedMainToggle.addEventListener('click', () => {
+          const isHidden = advancedMainContainer.style.display === 'none' || !advancedMainContainer.style.display;
+          adva
