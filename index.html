@@ -489,4 +489,1959 @@
         <input id="minCasesBusy" type="number" min="1" value="1">
       </div>
       <div class="field-inline">
-        <label for="minPartsBusy">…in more than this many pa
+        <label for="minPartsBusy">…in more than this many parts</label>
+        <input id="minPartsBusy" type="number" min="1" value="1">
+      </div>
+      <div class="checkbox-group">
+        <label>
+          <input type="checkbox" id="showWarrant">
+          Show warrant cases
+        </label>
+        <label>
+          <input type="checkbox" id="showClosed">
+          Show closed cases
+        </label>
+        <label>
+          <input type="checkbox" id="showReadyOnly">
+          Show ready cases only (COC filed)
+        </label>
+        <label>
+          <input type="checkbox" id="applyBusyFilter">
+          Show busy days only
+        </label>
+      </div>
+      <button type="button" class="secondary small-link" id="showTodosBtn">
+        Show cases with to-dos
+      </button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Docket</th>
+          <th>Charge</th>
+          <th>Start</th>
+          <th>Total Days</th>
+          <th>Excluded</th>
+          <th>Chargeable</th>
+          <th>Cap (days)</th>
+          <th>Deadline</th>
+          <th>NCD</th>
+          <th>Part</th>
+        </tr>
+      </thead>
+      <tbody id="casesBody">
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Case details modal -->
+  <div id="caseModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">Case Details</h2>
+        <button class="modal-close" onclick="closeCaseModal()">×</button>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label for="modalClientName">Client / Case Name</label>
+          <input id="modalClientName">
+        </div>
+        <div class="field">
+          <label for="modalDocketNumber">Docket / Indictment #</label>
+          <input id="modalDocketNumber">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label for="modalClientPhone">Client phone</label>
+          <input id="modalClientPhone" type="tel" placeholder="(555) 123-4567">
+        </div>
+        <div class="field">
+          <label for="modalClientEmail">Client email</label>
+          <input id="modalClientEmail" type="email" placeholder="client@example.com">
+        </div>
+      </div>
+
+      <!-- To-do creation + list -->
+      <div class="form-row" style="margin-bottom:0.5rem;">
+        <button type="button" class="secondary small-link" id="modalTodoCreateBtn">
+          Create to-do for this case
+        </button>
+      </div>
+      <div id="modalTodoCreateRow" style="display:none; margin-bottom:0.75rem;">
+        <div class="form-row">
+          <div class="field">
+            <label for="modalTodoDescription">To-do description</label>
+            <input id="modalTodoDescription" placeholder="e.g., Draft suppression motion">
+          </div>
+          <div class="field">
+            <label for="modalTodoDeadline">Deadline</label>
+            <input id="modalTodoDeadline" type="date">
+          </div>
+        </div>
+        <button type="button" class="primary small-link" onclick="addTodoToCurrentCase()">
+          Add to-do
+        </button>
+      </div>
+      <div class="modal-section-title">To-dos</div>
+      <ul id="modalTodoList" class="notes-list"></ul>
+
+      <div class="form-row" style="margin-top:0.75rem;">
+        <div class="field">
+          <label for="modalChargeLevel">Top Charge Level</label>
+          <select id="modalChargeLevel">
+            <option value="">Select...</option>
+            <option value="felony">Felony</option>
+            <option value="classA">Class A Misd</option>
+            <option value="classB">Class B Misd</option>
+            <option value="violation">Violation</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="modalStartDate">Clock Start Date</label>
+          <input id="modalStartDate" type="date">
+          <div class="small-text" style="color:#6b7280;margin-top:0.25rem;">
+            Typically the day the accusatory instrument was filed (CPL § 1.20[17]).
+          </div>
+        </div>
+        <div class="field">
+          <label for="modalArraignmentDate">Arraignment Date (optional)</label>
+          <input id="modalArraignmentDate" type="date">
+        </div>
+        <div class="field">
+          <label for="modalExcludedDays">Excluded Days (simple)</label>
+          <input id="modalExcludedDays" type="number" min="0">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <button type="button" class="secondary small-link" id="advancedModalToggle">
+          Advanced excludable…
+        </button>
+      </div>
+
+      <div id="advancedModalContainer" style="display:none; flex-direction:column; gap:0.75rem;">
+        <div class="form-row">
+          <div class="field">
+            <label for="modalDefExcluded">Definitely excludable days</label>
+            <input id="modalDefExcluded" type="number" min="0" readonly>
+          </div>
+          <div class="field">
+            <label for="modalArgExcluded">Arguably excludable days</label>
+            <input id="modalArgExcluded" type="number" min="0" readonly>
+          </div>
+        </div>
+
+        <div class="modal-section-title">Excludable calculator (this case)</div>
+        <p class="small-text">
+          Add windows of excludable time with reasons. Windows marked “Arg. excludable” will
+          be counted as arguably excludable; others count as definitely excludable. Simple excluded
+          days = definitely + arguably.
+        </p>
+        <div id="modalExRows"></div>
+        <button type="button" class="secondary small-link" id="modalExAddBtn" style="margin-top:0.3rem;">
+          + Add window
+        </button>
+        <div class="small-text" style="margin-top:0.5rem;">
+          Definitely excludable from windows: <span id="modalExDefTotal">0</span>
+        </div>
+        <div class="small-text">
+          Arguably excludable from windows: <span id="modalExArgTotal">0</span>
+        </div>
+        <div class="small-text">
+          Total excludable (simple): <span id="modalExTotal">0</span>
+        </div>
+
+        <div class="modal-section-title" style="margin-top:0.75rem;">30.30 Date (this case)</div>
+        <div class="small-text">
+          30.30 Date: <span id="modal3030Date"></span>
+        </div>
+        <div class="small-text">
+          <label>
+            <input type="checkbox" id="modalIncludeArg" checked>
+            Include arguably excludable days
+          </label>
+        </div>
+      </div>
+
+      <div class="form-row" style="margin-top:1rem;">
+        <div class="field">
+          <label for="modalNcd">Next Court Date (NCD)</label>
+          <input id="modalNcd" type="date">
+        </div>
+        <div class="field">
+          <label for="modalPart">Part</label>
+          <input id="modalPart" placeholder="e.g., AP3, Part 41">
+        </div>
+        <div class="field">
+          <label for="modalAda">Assigned ADA</label>
+          <input id="modalAda" placeholder="ADA Name">
+        </div>
+      </div>
+
+      <div class="checkbox-inline">
+        <label>
+          <input type="checkbox" id="modalClockStopped">
+          Clock currently stopped
+        </label>
+        <label>
+          <input type="checkbox" id="modalWarrant">
+          Warrant
+        </label>
+        <label>
+          <input type="checkbox" id="modalClosed">
+          Closed
+        </label>
+      </div>
+
+      <div class="form-row" style="margin-top:0.75rem;">
+        <div class="field">
+          <label>
+            <input type="checkbox" id="modalCocFiled">
+            COC filed
+          </label>
+          <div class="small-text">
+            When a COC is filed, the clock stops as of that date.
+          </div>
+        </div>
+        <div class="field">
+          <label for="modalCocDate">COC date</label>
+          <input id="modalCocDate" type="date">
+        </div>
+      </div>
+
+      <div>
+        <div class="modal-section-title">Notes</div>
+        <ul id="modalNotesList" class="notes-list"></ul>
+        <div class="form-row">
+          <div class="field">
+            <label for="modalNoteDate">Note Date</label>
+            <input id="modalNoteDate" type="date">
+          </div>
+          <div class="field">
+            <label for="modalNoteText">Note Text</label>
+            <textarea id="modalNoteText" rows="2" placeholder="e.g., People served discovery; defense asked for adjournment..."></textarea>
+          </div>
+        </div>
+        <button class="secondary" onclick="addNoteToCurrentCase()">Add Note</button>
+      </div>
+
+      <div style="margin-top: 1rem; display:flex; justify-content: space-between; gap:0.5rem; flex-wrap:wrap;">
+        <button class="secondary" type="button" onclick="exportCurrentCase()">Export this case</button>
+        <button class="primary" type="button" onclick="saveModalChanges()">Save changes</button>
+        <button class="danger" type="button" onclick="deleteCurrentCase()">Delete case</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Advanced excludable modal for main form -->
+  <div id="advExModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Advanced excludable time</h2>
+        <button class="modal-close" onclick="closeAdvExModal()">×</button>
+      </div>
+
+      <div class="modal-section-title">Excludable calculator (new case)</div>
+      <p class="small-text">
+        Add one or more windows of excludable time with reasons. Windows marked “Arg. excludable”
+        are treated as arguably excludable; others are definitely excludable. Simple excluded days
+        on the main form will always equal definitely + arguably.
+      </p>
+
+      <div id="exCalcRows"></div>
+
+      <button type="button" class="secondary small-link" id="exCalcAddBtn" style="margin-top:0.3rem;">
+        + Add window
+      </button>
+
+      <div class="small-text" style="margin-top:0.5rem;">
+        Definitely excludable from windows: <span id="exCalcDefTotal">0</span>
+      </div>
+      <div class="small-text">
+        Arguably excludable from windows: <span id="exCalcArgTotal">0</span>
+      </div>
+      <div class="small-text">
+        Total excludable (simple): <span id="exCalcTotal">0</span>
+      </div>
+
+      <div style="margin-top: 1rem; display:flex; justify-content: flex-end; gap:0.5rem;">
+        <button class="primary" type="button" onclick="saveAdvExAndClose()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CryptoJS for AES encryption of backups -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+
+  <script>
+    let currentModalCaseId = null;
+    let exCalcRowCounter = 0;
+    let modalExRowCounter = 0;
+    let quickExRowCounter = 0;
+    let showTodosOnly = false;
+
+    // excludable windows for the new (unsaved) case from main form
+    let pendingExWindows = [];
+
+    // --- Date helpers ---
+
+    function parseLocalDate(yyyyMmDd) {
+      const [y, m, d] = yyyyMmDd.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+
+    function formatDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function formatDateWithWeekday(date) {
+      const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      const dow = days[date.getDay()];
+      return `${dow}, ${m}/${d}/${y}`;
+    }
+
+    function daysBetween(startDateStr) {
+      if (!startDateStr) return 0;
+      const start = parseLocalDate(startDateStr);
+      const today = new Date();
+      start.setHours(0,0,0,0);
+      today.setHours(0,0,0,0);
+      const diffMs = today - start;
+      return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
+    function daysBetweenDates(start, end) {
+      const a = new Date(start.getTime());
+      const b = new Date(end.getTime());
+      a.setHours(0,0,0,0);
+      b.setHours(0,0,0,0);
+      const diffMs = b - a;
+      return Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
+    function addMonthsSameDay(date, n) {
+      const d = new Date(date.getTime());
+      const day = d.getDate();
+      d.setMonth(d.getMonth() + n);
+      if (d.getDate() !== day) {
+        d.setDate(0);
+      }
+      return d;
+    }
+
+    function addDays(date, n) {
+      const d = new Date(date.getTime());
+      d.setDate(d.getDate() + n);
+      return d;
+    }
+
+    // --- Holiday + weekend helpers ---
+
+    function isSameDay(d1, d2) {
+      return (
+        d1.getFullYear() === d2.getFullYear() &&
+        d1.getMonth() === d2.getMonth() &&
+        d1.getDate() === d2.getDate()
+      );
+    }
+
+    function nthWeekdayOfMonth(year, month, weekday, n) {
+      let d = new Date(year, month, 1);
+      const diff = (weekday - d.getDay() + 7) % 7;
+      d.setDate(1 + diff + 7 * (n - 1));
+      return d;
+    }
+
+    function lastWeekdayOfMonth(year, month, weekday) {
+      let d = new Date(year, month + 1, 0);
+      const diff = (d.getDay() - weekday + 7) % 7;
+      d.setDate(d.getDate() - diff);
+      return d;
+    }
+
+    function getHolidayName(date) {
+      const y = date.getFullYear();
+
+      function isDate(dt) {
+        return isSameDay(date, dt);
+      }
+
+      // New Year's Day (observed if Sunday)
+      const newYears = new Date(y, 0, 1);
+      const newYearsObserved = (newYears.getDay() === 0)
+        ? new Date(y, 0, 2)
+        : newYears;
+      if (isDate(newYearsObserved)) return "New Year's Day";
+
+      // Juneteenth (June 19, observed if Sunday)
+      const juneteenth = new Date(y, 5, 19);
+      const juneteenthObserved =
+        juneteenth.getDay() === 0 ? new Date(y, 5, 20) : juneteenth;
+      if (isDate(juneteenthObserved)) return "Juneteenth";
+
+      // Independence Day (July 4, observed if Sunday)
+      const july4 = new Date(y, 6, 4);
+      const july4Observed =
+        july4.getDay() === 0 ? new Date(y, 6, 5) : july4;
+      if (isDate(july4Observed)) return "Independence Day";
+
+      // Veterans Day (Nov 11, observed if Sunday)
+      const veterans = new Date(y, 10, 11);
+      const veteransObserved =
+        veterans.getDay() === 0 ? new Date(y, 10, 12) : veterans;
+      if (isDate(veteransObserved)) return "Veterans Day";
+
+      // Christmas Day (Dec 25, observed if Sunday)
+      const christmas = new Date(y, 11, 25);
+      const christmasObserved =
+        christmas.getDay() === 0 ? new Date(y, 11, 26) : christmas;
+      if (isDate(christmasObserved)) return "Christmas Day";
+
+      // MLK Day – 3rd Monday in January
+      const mlk = nthWeekdayOfMonth(y, 0, 1, 3);
+      if (isDate(mlk)) return "Martin Luther King Jr. Day";
+
+      // Presidents' Day – 3rd Monday in February
+      const presidents = nthWeekdayOfMonth(y, 1, 1, 3);
+      if (isDate(presidents)) return "Presidents' Day";
+
+      // Memorial Day – last Monday in May
+      const memorial = lastWeekdayOfMonth(y, 4, 1);
+      if (isDate(memorial)) return "Memorial Day";
+
+      // Labor Day – 1st Monday in September
+      const labor = nthWeekdayOfMonth(y, 8, 1, 1);
+      if (isDate(labor)) return "Labor Day";
+
+      // Columbus Day – 2nd Monday in October
+      const columbus = nthWeekdayOfMonth(y, 9, 1, 2);
+      if (isDate(columbus)) return "Columbus Day";
+
+      // Thanksgiving – 4th Thursday in November
+      const thanksgiving = nthWeekdayOfMonth(y, 10, 4, 4);
+      if (isDate(thanksgiving)) return "Thanksgiving Day";
+
+      return "";
+    }
+
+    function adjustForWeekendOrHoliday(baseDate) {
+      const d = new Date(baseDate.getTime());
+      let tooltip = "";
+
+      if (d.getDay() === 6) {
+        d.setDate(d.getDate() + 2);
+        tooltip = "Adjusted for deadline falling on Saturday";
+      } else if (d.getDay() === 0) {
+        d.setDate(d.getDate() + 1);
+        tooltip = "Adjusted for deadline falling on Sunday";
+      } else {
+        while (true) {
+          const name = getHolidayName(d);
+          if (!name) break;
+          d.setDate(d.getDate() + 1);
+          tooltip = `Adjusted for ${name}`;
+        }
+      }
+
+      return { adjustedDate: d, tooltip };
+    }
+
+    function computeCapAndDeadline(level, startDateStr) {
+      if (!startDateStr) return { capDays: 0, deadlineStr: '', tooltip: '' };
+
+      const start = parseLocalDate(startDateStr);
+      let baseDeadline, capDays;
+
+      if (level === 'felony') {
+        baseDeadline = addMonthsSameDay(start, 6);
+        capDays = daysBetweenDates(start, baseDeadline);
+      } else if (level === 'classA') {
+        baseDeadline = addDays(start, 90);
+        capDays = 90;
+      } else if (level === 'classB') {
+        baseDeadline = addDays(start, 60);
+        capDays = 60;
+      } else if (level === 'violation') {
+        baseDeadline = addDays(start, 30);
+        capDays = 30;
+      } else {
+        return { capDays: 0, deadlineStr: '', tooltip: '' };
+      }
+
+      const { adjustedDate, tooltip } = adjustForWeekendOrHoliday(baseDeadline);
+      const deadlineStr = formatDate(adjustedDate);
+
+      return { capDays, deadlineStr, tooltip };
+    }
+
+    function computeQuickDeadline(level, startDateStr, exDays) {
+      if (!startDateStr || !level) return null;
+      const start = parseLocalDate(startDateStr);
+      let baseDeadline;
+
+      if (level === 'felony') {
+        baseDeadline = addMonthsSameDay(start, 6);
+      } else if (level === 'classA') {
+        baseDeadline = addDays(start, 90);
+      } else if (level === 'classB') {
+        baseDeadline = addDays(start, 60);
+      } else if (level === 'violation') {
+        baseDeadline = addDays(start, 30);
+      } else {
+        return null;
+      }
+
+      const extended = addDays(baseDeadline, exDays || 0);
+      const { adjustedDate, tooltip } = adjustForWeekendOrHoliday(extended);
+      return { dateStr: formatDateWithWeekday(adjustedDate), tooltip, dateObj: adjustedDate };
+    }
+
+    function ncdClass(nextCourtDateStr) {
+      if (!nextCourtDateStr) return '';
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const ncd = parseLocalDate(nextCourtDateStr);
+      ncd.setHours(0,0,0,0);
+      const diffMs = ncd - today;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) return 'ncd-red';
+      if (diffDays <= 7) return 'ncd-yellow';
+      return 'ncd-green';
+    }
+
+    // --- Local storage helpers ---
+
+    function loadCases() {
+      const raw = localStorage.getItem('ny3030Cases');
+      if (!raw) return [];
+      try {
+        const arr = JSON.parse(raw);
+        return arr.map(c => ({
+          id: c.id,
+          clientName: c.clientName || '',
+          docketNumber: c.docketNumber || '',
+          chargeLevel: c.chargeLevel || '',
+          startDate: c.startDate || '',
+          excludedDays: c.excludedDays || "0",
+          definitelyExcludedDays: c.definitelyExcludedDays || "0",
+          arguablyExcludedDays: c.arguablyExcludedDays || "0",
+          notes: c.notes || '',
+          nextCourtDate: c.nextCourtDate || '',
+          courtPart: c.courtPart || '',
+          assignedAda: c.assignedAda || '',
+          noteEntries: Array.isArray(c.noteEntries) ? c.noteEntries : [],
+          warrant: !!c.warrant,
+          closed: !!c.closed,
+          clockStopped: !!c.clockStopped,
+          frozenTotalDays: typeof c.frozenTotalDays === 'number' ? c.frozenTotalDays : null,
+          cocFiled: !!c.cocFiled,
+          cocDate: c.cocDate || '',
+          clientPhone: c.clientPhone || '',
+          clientEmail: c.clientEmail || '',
+          arraignment_date: c.arraignment_date || '',
+          exWindows: Array.isArray(c.exWindows)
+            ? c.exWindows.map(w => ({
+                start: w.start || '',
+                end: w.end || '',
+                reason: w.reason || '',
+                arguable: !!w.arguable
+              }))
+            : [],
+          todos: Array.isArray(c.todos)
+            ? c.todos.map(t => ({
+                description: t.description || '',
+                deadline: t.deadline || '',
+                completed: !!t.completed
+              }))
+            : []
+        }));
+      } catch {
+        return [];
+      }
+    }
+
+    function saveCases(cases) {
+      localStorage.setItem('ny3030Cases', JSON.stringify(cases));
+    }
+
+    // --- UI helpers ---
+
+    function chargeTag(level) {
+      switch (level) {
+        case 'felony': return '<span class="tag tag-felony">Felony</span>';
+        case 'classA': return '<span class="tag tag-a">Class A Misd</span>';
+        case 'classB': return '<span class="tag tag-b">Class B Misd</span>';
+        case 'violation': return '<span class="tag tag-v">Violation</span>';
+        default: return '';
+      }
+    }
+
+    function compareByClient(a, b) {
+      return (a.clientName || '').localeCompare(b.clientName || '', undefined, { sensitivity: 'base' });
+    }
+
+    function compareByNcd(a, b) {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      function score(c) {
+        if (!c.nextCourtDate) return Number.POSITIVE_INFINITY;
+        const d = parseLocalDate(c.nextCourtDate);
+        d.setHours(0,0,0,0);
+        const diffDays = Math.floor((d - today) / (1000 * 60 * 60 * 24));
+        return diffDays;
+      }
+
+      const sa = score(a);
+      const sb = score(b);
+      return sa - sb;
+    }
+
+    function getSoonestOutstandingTodoDeadline(c) {
+      if (!c.todos || !Array.isArray(c.todos)) return null;
+      let best = null;
+      c.todos.forEach(t => {
+        if (t && !t.completed && t.deadline) {
+          try {
+            const d = parseLocalDate(t.deadline);
+            if (!best || d < best) best = d;
+          } catch {}
+        }
+      });
+      return best;
+    }
+
+    function compareByTodoDeadlineThenClient(a, b) {
+      const da = getSoonestOutstandingTodoDeadline(a);
+      const db = getSoonestOutstandingTodoDeadline(b);
+      if (!da && !db) return compareByClient(a, b);
+      if (!da) return 1;
+      if (!db) return -1;
+      if (da < db) return -1;
+      if (da > db) return 1;
+      return compareByClient(a, b);
+    }
+
+    // --- Rendering main table ---
+
+    function renderCases() {
+      const tbody = document.getElementById('casesBody');
+      let cases = loadCases();
+      const filter = document.getElementById('search').value.toLowerCase();
+      const sortMode = document.getElementById('sortMode').value;
+      const showWarrant = document.getElementById('showWarrant').checked;
+      const showClosed = document.getElementById('showClosed').checked;
+      const showReadyOnly = document.getElementById('showReadyOnly').checked;
+      const excludeMode = document.getElementById('excludeMode').value;
+      const applyBusy = document.getElementById('applyBusyFilter').checked;
+      const minCasesBusy = Math.max(1, parseInt(document.getElementById('minCasesBusy').value) || 1);
+      const minPartsBusy = Math.max(1, parseInt(document.getElementById('minPartsBusy').value) || 1);
+
+      // Base filters: ready / warrant / closed
+      cases = cases.filter(c => {
+        if (showReadyOnly && !c.cocFiled) return false;
+        if (c.closed && !showClosed) return false;
+        if (c.warrant && !showWarrant) return false;
+        return true;
+      });
+
+      // Text search
+      if (filter) {
+        cases = cases.filter(c => {
+          const combinedText = (
+            c.clientName + ' ' +
+            c.docketNumber + ' ' +
+            (c.notes || '') + ' ' +
+            (c.assignedAda || '') + ' ' +
+            (c.clientPhone || '') + ' ' +
+            (c.clientEmail || '')
+          ).toLowerCase();
+          return combinedText.includes(filter);
+        });
+      }
+
+      // Busy-day filter
+      if (applyBusy) {
+        const stats = {};
+        cases.forEach(c => {
+          if (!c.nextCourtDate) return;
+          const key = c.nextCourtDate;
+          if (!stats[key]) stats[key] = { count: 0, parts: new Set() };
+          stats[key].count++;
+          if (c.courtPart) stats[key].parts.add(c.courtPart);
+        });
+
+        cases = cases.filter(c => {
+          if (!c.nextCourtDate) return false;
+          const s = stats[c.nextCourtDate];
+          if (!s) return false;
+          const partsCount = s.parts.size;
+          return (s.count > minCasesBusy) && (partsCount > minPartsBusy);
+        });
+      }
+
+      // To-do filter
+      if (showTodosOnly) {
+        cases = cases.filter(c =>
+          Array.isArray(c.todos) && c.todos.some(t => t && !t.completed)
+        );
+      }
+
+      // Sorting
+      if (showTodosOnly) {
+        cases.sort(compareByTodoDeadlineThenClient);
+      } else if (sortMode === 'ncd') {
+        cases.sort(compareByNcd);
+      } else {
+        cases.sort(compareByClient);
+      }
+
+      tbody.innerHTML = '';
+
+      cases.forEach(c => {
+        let totalDays;
+        if (c.cocFiled && c.cocDate && c.startDate) {
+          const s = parseLocalDate(c.startDate);
+          const d = parseLocalDate(c.cocDate);
+          totalDays = Math.max(0, daysBetweenDates(s, d));
+        } else if (c.clockStopped && c.frozenTotalDays != null) {
+          totalDays = c.frozenTotalDays;
+        } else {
+          totalDays = daysBetween(c.startDate);
+        }
+
+        const defEx = Number(c.definitelyExcludedDays) || 0;
+        const argEx = Number(c.arguablyExcludedDays) || 0;
+        const simpleExcluded = Number(c.excludedDays) || 0;
+
+        let excluded = simpleExcluded;
+        let excludedDetail = `${simpleExcluded} (simple total)`;
+
+        if (defEx || argEx) {
+          if (excludeMode === 'defOnly') {
+            excluded = defEx;
+            excludedDetail = `${defEx} definitely excludable; ${argEx} arguably excludable (not counted)`;
+          } else {
+            excluded = defEx + argEx;
+            excludedDetail = `${defEx} definitely + ${argEx} arguably excludable (both counted)`;
+          }
+        }
+
+        const chargeable = Math.max(0, totalDays - excluded);
+
+        const { capDays, deadlineStr, tooltip } = computeCapAndDeadline(c.chargeLevel, c.startDate);
+        const ncdCls = ncdClass(c.nextCourtDate);
+
+        let remainingText = '';
+        if (capDays) {
+          const remaining = capDays - chargeable;
+          if (remaining > 0) {
+            remainingText = `(${remaining} days remaining)`;
+          } else if (remaining === 0) {
+            remainingText = `(deadline today)`;
+          } else {
+            remainingText = `${Math.abs(remaining)} days past deadline`;
+          }
+        }
+
+        const tr = document.createElement('tr');
+        if (c.warrant) tr.classList.add('row-warrant');
+        if (c.closed) tr.classList.add('row-closed');
+        if (c.cocFiled) tr.classList.add('row-ready');
+
+        const todos = Array.isArray(c.todos) ? c.todos : [];
+        const outstandingTodos = todos.filter(t => t && !t.completed);
+        let todoInfoHtml = '';
+
+        if (outstandingTodos.length > 0) {
+          let nextTodo = null;
+          let nextDeadlineDate = null;
+
+          outstandingTodos.forEach(t => {
+            if (t.deadline) {
+              try {
+                const d = parseLocalDate(t.deadline);
+                if (!nextDeadlineDate || d < nextDeadlineDate) {
+                  nextDeadlineDate = d;
+                  nextTodo = t;
+                }
+              } catch {
+                if (!nextTodo) nextTodo = t;
+              }
+            } else if (!nextTodo && !nextDeadlineDate) {
+              nextTodo = t;
+            }
+          });
+
+          if (nextTodo) {
+            let label;
+            if (nextDeadlineDate) {
+              label = formatDateWithWeekday(nextDeadlineDate);
+            } else if (nextTodo.deadline) {
+              label = nextTodo.deadline;
+            } else {
+              label = 'No deadline set';
+            }
+            const desc = nextTodo.description || '';
+            todoInfoHtml = `<div class="small-text">Next to-do: ${label}${desc ? ' – ' + desc : ''}</div>`;
+          }
+
+          tr.classList.add('row-todo-highlight');
+        }
+
+        let clientCell = c.clientName;
+        if (c.warrant) clientCell += ' <span class="badge badge-warrant">Warrant</span>';
+        if (c.closed) clientCell += ' <span class="badge badge-closed">Closed</span>';
+        if (c.clockStopped) clientCell += ' <span class="badge" style="background:#e0f2fe;color:#1d4ed8;">Clock stopped</span>';
+        if (c.cocFiled) clientCell += ' <span class="badge" style="background:#dbeafe;color:#1d4ed8;">READY (COC filed)</span>';
+        if (outstandingTodos.length > 0) clientCell += ' <span class="badge badge-todo">To-do!</span>';
+
+        tr.innerHTML = `
+          <td>${clientCell}${todoInfoHtml}</td>
+          <td>${c.docketNumber || ''}</td>
+          <td>${chargeTag(c.chargeLevel)}</td>
+          <td>${c.startDate || ''}</td>
+          <td>${totalDays}</td>
+          <td title="${excludedDetail}">${excluded}</td>
+          <td>${chargeable}</td>
+          <td>${capDays || ''}</td>
+          <td title="${tooltip || ''}">${deadlineStr || ''}</td>
+          <td class="${ncdCls}">
+            ${c.nextCourtDate || ''}
+            ${remainingText ? `<div class="small-text">${remainingText}</div>` : ''}
+          </td>
+          <td>${c.courtPart || ''}</td>
+        `;
+
+        tr.addEventListener('click', () => {
+          openCaseModal(c.id);
+        });
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // --- Case modal logic ---
+
+    function openCaseModal(id) {
+      const cases = loadCases();
+      const c = cases.find(c => c.id === id);
+      if (!c) return;
+      currentModalCaseId = id;
+
+      document.getElementById('modalTitle').textContent = c.clientName || 'Case Details';
+      document.getElementById('modalClientName').value = c.clientName || '';
+      document.getElementById('modalDocketNumber').value = c.docketNumber || '';
+      document.getElementById('modalClientPhone').value = c.clientPhone || '';
+      document.getElementById('modalClientEmail').value = c.clientEmail || '';
+      document.getElementById('modalChargeLevel').value = c.chargeLevel || '';
+      document.getElementById('modalStartDate').value = c.startDate || '';
+      document.getElementById('modalExcludedDays').value = c.excludedDays || "0";
+      document.getElementById('modalDefExcluded').value = c.definitelyExcludedDays || "0";
+      document.getElementById('modalArgExcluded').value = c.arguablyExcludedDays || "0";
+      document.getElementById('modalNcd').value = c.nextCourtDate || '';
+      document.getElementById('modalArraignmentDate').value = c.arraignment_date || '';
+      document.getElementById('modalPart').value = c.courtPart || '';
+      document.getElementById('modalAda').value = c.assignedAda || '';
+      document.getElementById('modalClockStopped').checked = !!c.clockStopped;
+      document.getElementById('modalWarrant').checked = !!c.warrant;
+      document.getElementById('modalClosed').checked = !!c.closed;
+      document.getElementById('modalCocFiled').checked = !!c.cocFiled;
+      document.getElementById('modalCocDate').value = c.cocDate || '';
+      document.getElementById('modalIncludeArg').checked = true; // default
+
+      document.getElementById('modalNoteDate').value = '';
+      document.getElementById('modalNoteText').value = '';
+
+      // Reset to-do creation UI
+      const todoCreateRow = document.getElementById('modalTodoCreateRow');
+      if (todoCreateRow) todoCreateRow.style.display = 'none';
+      const todoDescInput = document.getElementById('modalTodoDescription');
+      const todoDeadlineInput = document.getElementById('modalTodoDeadline');
+      if (todoDescInput) todoDescInput.value = '';
+      if (todoDeadlineInput) todoDeadlineInput.value = '';
+
+      renderModalNotes(c.noteEntries || []);
+      renderModalTodos(c.todos || []);
+
+      const advModal = document.getElementById('advancedModalContainer');
+      if ((Number(c.definitelyExcludedDays) || 0) > 0 || (Number(c.arguablyExcludedDays) || 0) > 0 || (c.exWindows && c.exWindows.length > 0)) {
+        advModal.style.display = 'flex';
+      } else {
+        advModal.style.display = 'none';
+      }
+
+      loadModalExCalc(c.exWindows || []);
+
+      document.getElementById('caseModal').style.display = 'flex';
+    }
+
+    function closeCaseModal() {
+      currentModalCaseId = null;
+      document.getElementById('caseModal').style.display = 'none';
+    }
+
+    function renderModalNotes(notes) {
+      const list = document.getElementById('modalNotesList');
+      list.innerHTML = '';
+      if (!notes || notes.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'No notes yet.';
+        list.appendChild(li);
+        return;
+      }
+      notes.forEach((n, idx) => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <span class="note-date">${n.date || ''}</span>: ${n.text || ''}
+          <button type="button" class="danger small-link" style="margin-left:0.5rem;" onclick="deleteNoteFromCurrentCase(${idx})">
+            Delete
+          </button>
+        `;
+        list.appendChild(li);
+      });
+    }
+
+    function deleteNoteFromCurrentCase(noteIndex) {
+      if (!currentModalCaseId && currentModalCaseId !== 0) return;
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const caseObj = cases[idx];
+      if (!Array.isArray(caseObj.noteEntries)) {
+        caseObj.noteEntries = [];
+      }
+      if (noteIndex < 0 || noteIndex >= caseObj.noteEntries.length) return;
+
+      if (!confirm('Delete this note?')) return;
+
+      caseObj.noteEntries.splice(noteIndex, 1);
+      saveCases(cases);
+      renderModalNotes(caseObj.noteEntries);
+    }
+
+    function addNoteToCurrentCase() {
+      if (!currentModalCaseId) return;
+      const date = document.getElementById('modalNoteDate').value;
+      const text = document.getElementById('modalNoteText').value.trim();
+      if (!date && !text) {
+        alert('Enter a date and/or note text.');
+        return;
+      }
+
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const caseObj = cases[idx];
+      if (!Array.isArray(caseObj.noteEntries)) {
+        caseObj.noteEntries = [];
+      }
+      caseObj.noteEntries.push({ date, text });
+      saveCases(cases);
+
+      document.getElementById('modalNoteDate').value = '';
+      document.getElementById('modalNoteText').value = '';
+      renderModalNotes(caseObj.noteEntries);
+    }
+
+    function collectModalExWindows() {
+      const rows = Array.from(document.querySelectorAll('#modalExRows .excalc-row'));
+      const windows = [];
+      rows.forEach(row => {
+        const startVal = row.querySelector('.modal-ex-start').value;
+        const endVal = row.querySelector('.modal-ex-end').value;
+        const reasonVal = row.querySelector('.modal-ex-reason').value.trim();
+        const argChecked = row.querySelector('.modal-ex-arg').checked;
+        if (startVal || endVal || reasonVal) {
+          windows.push({
+            start: startVal,
+            end: endVal,
+            reason: reasonVal,
+            arguable: argChecked
+          });
+        }
+      });
+      return windows;
+    }
+
+    function saveModalChanges() {
+      if (!currentModalCaseId) return;
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const c = cases[idx];
+
+      c.clientName = document.getElementById('modalClientName').value.trim();
+      c.docketNumber = document.getElementById('modalDocketNumber').value.trim();
+      c.clientPhone = document.getElementById('modalClientPhone').value.trim();
+      c.clientEmail = document.getElementById('modalClientEmail').value.trim();
+      c.chargeLevel = document.getElementById('modalChargeLevel').value;
+      c.startDate = document.getElementById('modalStartDate').value;
+      c.arraignment_date = document.getElementById('modalArraignmentDate').value;
+      c.excludedDays = document.getElementById('modalExcludedDays').value || "0";
+      c.definitelyExcludedDays = document.getElementById('modalDefExcluded').value || "0";
+      c.arguablyExcludedDays = document.getElementById('modalArgExcluded').value || "0";
+      c.nextCourtDate = document.getElementById('modalNcd').value;
+      c.courtPart = document.getElementById('modalPart').value.trim();
+      c.assignedAda = document.getElementById('modalAda').value.trim();
+
+      c.exWindows = collectModalExWindows();
+
+      const newClockStopped = document.getElementById('modalClockStopped').checked;
+      const wasStopped = c.clockStopped;
+
+      if (!wasStopped && newClockStopped) {
+        c.frozenTotalDays = daysBetween(c.startDate);
+      } else if (wasStopped && !newClockStopped) {
+        c.frozenTotalDays = null;
+      }
+
+      c.clockStopped = newClockStopped;
+      c.warrant = document.getElementById('modalWarrant').checked;
+      c.closed = document.getElementById('modalClosed').checked;
+      c.cocFiled = document.getElementById('modalCocFiled').checked;
+      c.cocDate = document.getElementById('modalCocDate').value;
+
+      saveCases(cases);
+      renderCases();
+      closeCaseModal();
+    }
+
+    function deleteCurrentCase() {
+      if (!currentModalCaseId) return;
+      if (!confirm('Delete this case from your tracker?')) return;
+
+      const cases = loadCases().filter(c => c.id !== currentModalCaseId);
+      saveCases(cases);
+      renderCases();
+      closeCaseModal();
+    }
+
+    function exportCurrentCase() {
+      if (!currentModalCaseId) {
+        alert('Open a case first to export it.');
+        return;
+      }
+
+      const password = prompt('Enter a password to encrypt this case export:');
+      if (!password) {
+        alert('Export cancelled (no password entered).');
+        return;
+      }
+
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) {
+        alert('Could not find this case in storage.');
+        return;
+      }
+
+      const existing = cases[idx];
+
+      // Build a fresh case object from the current modal fields without mutating storage
+      const exported = {
+        ...existing,
+        clientName: document.getElementById('modalClientName').value.trim(),
+        docketNumber: document.getElementById('modalDocketNumber').value.trim(),
+        clientPhone: document.getElementById('modalClientPhone').value.trim(),
+        clientEmail: document.getElementById('modalClientEmail').value.trim(),
+        chargeLevel: document.getElementById('modalChargeLevel').value,
+        startDate: document.getElementById('modalStartDate').value,
+        arraignment_date: document.getElementById('modalArraignmentDate').value,
+        excludedDays: document.getElementById('modalExcludedDays').value || "0",
+        definitelyExcludedDays: document.getElementById('modalDefExcluded').value || "0",
+        arguablyExcludedDays: document.getElementById('modalArgExcluded').value || "0",
+        nextCourtDate: document.getElementById('modalNcd').value,
+        courtPart: document.getElementById('modalPart').value.trim(),
+        assignedAda: document.getElementById('modalAda').value.trim(),
+        cocFiled: document.getElementById('modalCocFiled').checked,
+        cocDate: document.getElementById('modalCocDate').value,
+        warrant: document.getElementById('modalWarrant').checked,
+        closed: document.getElementById('modalClosed').checked,
+        clockStopped: document.getElementById('modalClockStopped').checked,
+        exWindows: collectModalExWindows()
+      };
+
+      // Handle frozenTotalDays for export based on clockStopped state
+      let frozen = existing.frozenTotalDays ?? null;
+      const newClockStopped = exported.clockStopped;
+      const wasStopped = existing.clockStopped;
+      if (!wasStopped && newClockStopped) {
+        frozen = daysBetween(exported.startDate);
+      } else if (wasStopped && !newClockStopped) {
+        frozen = null;
+      }
+      exported.frozenTotalDays = frozen;
+
+      try {
+        const plaintext = JSON.stringify(exported);
+        const ciphertext = CryptoJS.AES.encrypt(plaintext, password).toString();
+
+        const blob = new Blob([ciphertext], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const safeName = (exported.clientName || 'case').replace(/[^a-z0-9\-]+/gi, '_');
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `nycasetracker-case-${safeName}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        alert('Encrypted single-case export created. You\'ll need this password to import it on another device.');
+      } catch (err) {
+        console.error(err);
+        alert('Something went wrong exporting this case.');
+      }
+    }
+
+    // --- To-do modal helpers ---
+
+    function renderModalTodos(todos) {
+      const list = document.getElementById('modalTodoList');
+      list.innerHTML = '';
+      if (!todos || todos.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'No to-dos yet.';
+        list.appendChild(li);
+        return;
+      }
+
+      todos.forEach((t, idx) => {
+        const li = document.createElement('li');
+        const isCompleted = !!t.completed;
+        let deadlineText = 'No deadline';
+        if (t.deadline) {
+          try {
+            const d = parseLocalDate(t.deadline);
+            deadlineText = formatDateWithWeekday(d);
+          } catch {
+            deadlineText = t.deadline;
+          }
+        }
+        li.className = isCompleted ? 'todo-completed' : '';
+        li.innerHTML = `
+          <span class="note-date">${deadlineText}</span>: ${t.description || ''}
+          ${
+            isCompleted
+              ? `<button type="button" class="secondary small-link" style="margin-left:0.5rem;" onclick="toggleTodoCompleted(${idx}, false)">Mark not done</button>`
+              : `<button type="button" class="secondary small-link" style="margin-left:0.5rem;" onclick="toggleTodoCompleted(${idx}, true)">Mark done</button>`
+          }
+          <button type="button" class="danger small-link" style="margin-left:0.25rem;" onclick="deleteTodoFromCurrentCase(${idx})">
+            Delete
+          </button>
+        `;
+        list.appendChild(li);
+      });
+    }
+
+    function addTodoToCurrentCase() {
+      if (!currentModalCaseId) return;
+      const descEl = document.getElementById('modalTodoDescription');
+      const deadlineEl = document.getElementById('modalTodoDeadline');
+      const description = descEl.value.trim();
+      const deadline = deadlineEl.value;
+
+      if (!description && !deadline) {
+        alert('Enter at least a description or a deadline.');
+        return;
+      }
+
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const caseObj = cases[idx];
+      if (!Array.isArray(caseObj.todos)) {
+        caseObj.todos = [];
+      }
+      caseObj.todos.push({
+        description,
+        deadline,
+        completed: false
+      });
+
+      saveCases(cases);
+      renderModalTodos(caseObj.todos);
+      renderCases();
+
+      descEl.value = '';
+      deadlineEl.value = '';
+    }
+
+    function deleteTodoFromCurrentCase(todoIndex) {
+      if (!currentModalCaseId && currentModalCaseId !== 0) return;
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const caseObj = cases[idx];
+      if (!Array.isArray(caseObj.todos)) {
+        caseObj.todos = [];
+      }
+      if (todoIndex < 0 || todoIndex >= caseObj.todos.length) return;
+
+      if (!confirm('Delete this to-do?')) return;
+
+      caseObj.todos.splice(todoIndex, 1);
+      saveCases(cases);
+      renderModalTodos(caseObj.todos);
+      renderCases();
+    }
+
+    function toggleTodoCompleted(todoIndex, completed) {
+      if (!currentModalCaseId && currentModalCaseId !== 0) return;
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const caseObj = cases[idx];
+      if (!Array.isArray(caseObj.todos)) {
+        caseObj.todos = [];
+      }
+      if (todoIndex < 0 || todoIndex >= caseObj.todos.length) return;
+
+      caseObj.todos[todoIndex].completed = completed;
+      saveCases(cases);
+      renderModalTodos(caseObj.todos);
+      renderCases();
+    }
+
+    // --- Advanced excludable modal (main form) ---
+
+    function openAdvExModal() {
+      const container = document.getElementById('exCalcRows');
+      container.innerHTML = '';
+      exCalcRowCounter = 0;
+
+      if (!pendingExWindows || pendingExWindows.length === 0) {
+        addExCalcRow();
+      } else {
+        pendingExWindows.forEach(w => addExCalcRow(w));
+      }
+
+      recalcExCalcTotals();
+      document.getElementById('advExModal').style.display = 'flex';
+    }
+
+    function closeAdvExModal() {
+      document.getElementById('advExModal').style.display = 'none';
+    }
+
+    function saveAdvExAndClose() {
+      closeAdvExModal();
+    }
+
+    function resetExCalc() {
+      pendingExWindows = [];
+      const container = document.getElementById('exCalcRows');
+      if (container) container.innerHTML = '';
+      exCalcRowCounter = 0;
+    }
+
+    function addExCalcRow(existing) {
+      const container = document.getElementById('exCalcRows');
+      const rowId = ++exCalcRowCounter;
+      const row = document.createElement('div');
+      row.className = 'excalc-row';
+      row.dataset.rowId = rowId;
+
+      row.innerHTML = `
+        <input type="date" class="excalc-start">
+        <input type="date" class="excalc-end">
+        <input type="text" class="excalc-reason" placeholder="Excludable reason">
+        <label style="font-size:0.8rem;">
+          <input type="checkbox" class="excalc-arg"> Arg. excludable
+        </label>
+        <span class="excalc-days">0 days</span>
+        <button type="button" class="secondary small-link excalc-remove" title="Remove window">×</button>
+      `;
+
+      const startInput = row.querySelector('.excalc-start');
+      const endInput = row.querySelector('.excalc-end');
+      const reasonInput = row.querySelector('.excalc-reason');
+      const argCheckbox = row.querySelector('.excalc-arg');
+      const removeBtn = row.querySelector('.excalc-remove');
+
+      if (existing) {
+        startInput.value = existing.start || '';
+        endInput.value = existing.end || '';
+        reasonInput.value = existing.reason || '';
+        argCheckbox.checked = !!existing.arguable;
+      }
+
+      startInput.addEventListener('change', recalcExCalcTotals);
+      endInput.addEventListener('change', recalcExCalcTotals);
+      reasonInput.addEventListener('input', recalcExCalcTotals);
+      argCheckbox.addEventListener('change', recalcExCalcTotals);
+      removeBtn.addEventListener('click', () => {
+        row.remove();
+        recalcExCalcTotals();
+      });
+
+      container.appendChild(row);
+    }
+
+    function recalcExCalcTotals() {
+      const rows = Array.from(document.querySelectorAll('#exCalcRows .excalc-row'));
+      let totalDef = 0;
+      let totalArg = 0;
+      const windows = [];
+
+      rows.forEach(row => {
+        const startVal = row.querySelector('.excalc-start').value;
+        const endVal = row.querySelector('.excalc-end').value;
+        const reasonVal = row.querySelector('.excalc-reason').value.trim();
+        const argChecked = row.querySelector('.excalc-arg').checked;
+        let days = 0;
+
+        if (startVal && endVal) {
+          const s = parseLocalDate(startVal);
+          const e = parseLocalDate(endVal);
+          if (e >= s) {
+            days = daysBetweenDates(s, e) + 1; // inclusive
+            if (argChecked) totalArg += days;
+            else totalDef += days;
+          }
+        }
+        row.querySelector('.excalc-days').textContent = `${days} day${days === 1 ? '' : 's'}`;
+
+        if (startVal || endVal || reasonVal) {
+          windows.push({
+            start: startVal,
+            end: endVal,
+            reason: reasonVal,
+            arguable: argChecked
+          });
+        }
+      });
+
+      pendingExWindows = windows;
+
+      const defTotal = totalDef;
+      const argTotal = totalArg;
+      const simpleTotal = defTotal + argTotal;
+
+      const defSpan = document.getElementById('exCalcDefTotal');
+      const argSpan = document.getElementById('exCalcArgTotal');
+      const totalSpan = document.getElementById('exCalcTotal');
+
+      if (defSpan) defSpan.textContent = String(defTotal);
+      if (argSpan) argSpan.textContent = String(argTotal);
+      if (totalSpan) totalSpan.textContent = String(simpleTotal);
+
+      const defHidden = document.getElementById('definitelyExcludedDays');
+      const argHidden = document.getElementById('arguablyExcludedDays');
+      const simpleInput = document.getElementById('excludedDays');
+
+      if (defHidden) defHidden.value = String(defTotal);
+      if (argHidden) argHidden.value = String(argTotal);
+      if (simpleInput) simpleInput.value = String(simpleTotal);
+    }
+
+    // --- Modal excludable calculator (per case) ---
+
+    function resetModalExCalc() {
+      const container = document.getElementById('modalExRows');
+      if (container) container.innerHTML = '';
+      modalExRowCounter = 0;
+    }
+
+    function loadModalExCalc(exWindows) {
+      const container = document.getElementById('modalExRows');
+      container.innerHTML = '';
+      modalExRowCounter = 0;
+
+      if (exWindows && exWindows.length > 0) {
+        exWindows.forEach(w => addModalExRow(w));
+      } else {
+        addModalExRow();
+      }
+
+      recalcModalExTotals();
+    }
+
+    function addModalExRow(existing) {
+      const container = document.getElementById('modalExRows');
+      const rowId = ++modalExRowCounter;
+      const row = document.createElement('div');
+      row.className = 'excalc-row';
+      row.dataset.rowId = rowId;
+
+      row.innerHTML = `
+        <input type="date" class="modal-ex-start">
+        <input type="date" class="modal-ex-end">
+        <input type="text" class="modal-ex-reason" placeholder="Excludable reason">
+        <label style="font-size:0.8rem;">
+          <input type="checkbox" class="modal-ex-arg"> Arg. excludable
+        </label>
+        <span class="excalc-days">0 days</span>
+        <button type="button" class="secondary small-link modal-ex-remove" title="Remove window">×</button>
+      `;
+
+      const startInput = row.querySelector('.modal-ex-start');
+      const endInput = row.querySelector('.modal-ex-end');
+      const reasonInput = row.querySelector('.modal-ex-reason');
+      const argCheckbox = row.querySelector('.modal-ex-arg');
+      const removeBtn = row.querySelector('.modal-ex-remove');
+
+      if (existing) {
+        startInput.value = existing.start || '';
+        endInput.value = existing.end || '';
+        reasonInput.value = existing.reason || '';
+        argCheckbox.checked = !!existing.arguable;
+      }
+
+      startInput.addEventListener('change', recalcModalExTotals);
+      endInput.addEventListener('change', recalcModalExTotals);
+      reasonInput.addEventListener('input', recalcModalExTotals);
+      argCheckbox.addEventListener('change', recalcModalExTotals);
+      removeBtn.addEventListener('click', () => {
+        row.remove();
+        recalcModalExTotals();
+      });
+
+      container.appendChild(row);
+    }
+
+    function updateModal3030Date() {
+      const span = document.getElementById('modal3030Date');
+      if (!span) return;
+
+      const level = document.getElementById('modalChargeLevel').value;
+      const startStr = document.getElementById('modalStartDate').value;
+      const def = Number(document.getElementById('modalDefExcluded').value) || 0;
+      const arg = Number(document.getElementById('modalArgExcluded').value) || 0;
+      const includeArg = document.getElementById('modalIncludeArg').checked;
+
+      if (!level || !startStr) {
+        span.textContent = '';
+        span.title = '';
+        return;
+      }
+
+      const extraDays = def + (includeArg ? arg : 0);
+      const res = computeQuickDeadline(level, startStr, extraDays);
+      if (!res || !res.dateObj) {
+        span.textContent = '';
+        span.title = '';
+        return;
+      }
+
+      const deadlineDate = res.dateObj;
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const dCopy = new Date(deadlineDate.getTime());
+      dCopy.setHours(0,0,0,0);
+      const diffDays = Math.floor((dCopy - today) / (1000 * 60 * 60 * 24));
+
+      let diffText;
+      if (diffDays > 0) {
+        diffText = `${diffDays} day${diffDays === 1 ? '' : 's'} from today`;
+      } else if (diffDays === 0) {
+        diffText = 'today';
+      } else {
+        const n = Math.abs(diffDays);
+        diffText = `${n} day${n === 1 ? '' : 's'} ago`;
+      }
+
+      span.textContent = `${res.dateStr} (${diffText})`;
+      span.title = res.tooltip || '';
+    }
+
+    function recalcModalExTotals() {
+      const rows = Array.from(document.querySelectorAll('#modalExRows .excalc-row'));
+      let totalDef = 0;
+      let totalArg = 0;
+
+      rows.forEach(row => {
+        const startVal = row.querySelector('.modal-ex-start').value;
+        const endVal = row.querySelector('.modal-ex-end').value;
+        const argChecked = row.querySelector('.modal-ex-arg').checked;
+        let days = 0;
+        if (startVal && endVal) {
+          const s = parseLocalDate(startVal);
+          const e = parseLocalDate(endVal);
+          if (e >= s) {
+            days = daysBetweenDates(s, e) + 1;
+            if (argChecked) totalArg += days;
+            else totalDef += days;
+          }
+        }
+        row.querySelector('.excalc-days').textContent = `${days} day${days === 1 ? '' : 's'}`;
+      });
+
+      const defInput = document.getElementById('modalDefExcluded');
+      const argInput = document.getElementById('modalArgExcluded');
+      const simpleInput = document.getElementById('modalExcludedDays');
+      const defSpan = document.getElementById('modalExDefTotal');
+      const argSpan = document.getElementById('modalExArgTotal');
+      const totalSpan = document.getElementById('modalExTotal');
+
+      const defTotal = totalDef;
+      const argTotal = totalArg;
+      const simpleTotal = defTotal + argTotal;
+
+      if (defInput) defInput.value = String(defTotal);
+      if (argInput) argInput.value = String(argTotal);
+      if (simpleInput) simpleInput.value = String(simpleTotal);
+      if (defSpan) defSpan.textContent = String(defTotal);
+      if (argSpan) argSpan.textContent = String(argTotal);
+      if (totalSpan) totalSpan.textContent = String(simpleTotal);
+
+      updateModal3030Date();
+    }
+
+    // --- Quick 30.30 calculator ---
+
+    function resetQuickExCalc() {
+      const container = document.getElementById('quickExRows');
+      container.innerHTML = '';
+      quickExRowCounter = 0;
+      addQuickExRow();
+      recalcQuickExTotals();
+    }
+
+    function addQuickExRow() {
+      const container = document.getElementById('quickExRows');
+      const rowId = ++quickExRowCounter;
+      const row = document.createElement('div');
+      row.className = 'excalc-row';
+      row.dataset.rowId = rowId;
+
+      row.innerHTML = `
+        <input type="date" class="quick-ex-start">
+        <input type="date" class="quick-ex-end">
+        <span class="excalc-days">0 days</span>
+        <button type="button" class="secondary small-link quick-ex-remove" title="Remove window">×</button>
+      `;
+
+      const startInput = row.querySelector('.quick-ex-start');
+      const endInput = row.querySelector('.quick-ex-end');
+      const removeBtn = row.querySelector('.quick-ex-remove');
+
+      startInput.addEventListener('change', recalcQuickExTotals);
+      endInput.addEventListener('change', recalcQuickExTotals);
+      removeBtn.addEventListener('click', () => {
+        row.remove();
+        recalcQuickExTotals();
+      });
+
+      container.appendChild(row);
+    }
+
+    function recalcQuickExTotals() {
+      const rows = Array.from(document.querySelectorAll('#quickExRows .excalc-row'));
+      let total = 0;
+
+      rows.forEach(row => {
+        const startVal = row.querySelector('.quick-ex-start').value;
+        const endVal = row.querySelector('.quick-ex-end').value;
+        let days = 0;
+        if (startVal && endVal) {
+          const s = parseLocalDate(startVal);
+          const e = parseLocalDate(endVal);
+          if (e >= s) {
+            days = daysBetweenDates(s, e) + 1;
+          }
+        }
+        row.querySelector('.excalc-days').textContent = `${days} day${days === 1 ? '' : 's'}`;
+        total += days;
+      });
+
+      document.getElementById('quickExTotal').textContent = String(total);
+      updateQuickDeadline();
+    }
+
+    function updateQuickDeadline() {
+      const level = document.getElementById('quickChargeLevel').value;
+      const startStr = document.getElementById('quickStartDate').value;
+      const exDays = Number(document.getElementById('quickExTotal').textContent) || 0;
+      const span = document.getElementById('quickDeadline');
+
+      if (!level || !startStr) {
+        span.textContent = '';
+        span.title = '';
+        return;
+      }
+
+      const res = computeQuickDeadline(level, startStr, exDays);
+      if (!res) {
+        span.textContent = '';
+        span.title = '';
+        return;
+      }
+      span.textContent = res.dateStr;
+      span.title = res.tooltip || '';
+    }
+
+    // --- Local encrypted backup ---
+
+    function setBackupStatus(msg) {
+      document.getElementById('backupStatus').innerText = msg || '';
+    }
+
+    function getBackupPassword() {
+      const pw = document.getElementById('backupPassword').value;
+      if (!pw) {
+        alert('Enter a backup password first.');
+        return null;
+      }
+      return pw;
+    }
+
+    function exportEncryptedBackup() {
+      const password = getBackupPassword();
+      if (!password) return;
+
+      const cases = loadCases();
+      if (!cases || cases.length === 0) {
+        if (!confirm('You currently have no cases stored. Export an empty backup?')) {
+          return;
+        }
+      }
+
+      try {
+        const plaintext = JSON.stringify(cases);
+        const ciphertext = CryptoJS.AES.encrypt(plaintext, password).toString();
+
+        const blob = new Blob([ciphertext], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'nycasetracker-backup.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        setBackupStatus('Encrypted backup exported. Keep the file and password safe.');
+      } catch (err) {
+        console.error(err);
+        alert('Something went wrong creating the backup.');
+      }
+    }
+
+    function handleImportFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const password = getBackupPassword();
+      if (!password) {
+        event.target.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const ciphertext = e.target.result;
+          const bytes = CryptoJS.AES.decrypt(ciphertext, password);
+          const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+
+          if (!plaintext) {
+            throw new Error('Decryption resulted in empty text (wrong password or corrupt file).');
+          }
+
+          const importedCases = JSON.parse(plaintext);
+          if (!Array.isArray(importedCases)) {
+            throw new Error('Backup file format not recognized.');
+          }
+
+          saveCases(importedCases);
+          renderCases();
+          setBackupStatus('Backup imported successfully onto this device (existing cases replaced).');
+          alert('Import successful. Your cases are now loaded on this computer, replacing previous cases.');
+        } catch (err) {
+          console.error(err);
+          alert('Could not decrypt/import backup. Check your password and that you chose the correct file.');
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function handleImportMergeFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const password = getBackupPassword();
+      if (!password) {
+        event.target.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const ciphertext = e.target.result;
+          const bytes = CryptoJS.AES.decrypt(ciphertext, password);
+          const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+
+          if (!plaintext) {
+            throw new Error('Decryption resulted in empty text (wrong password or corrupt file).');
+          }
+
+          const parsed = JSON.parse(plaintext);
+          let importedCases;
+          if (Array.isArray(parsed)) {
+            importedCases = parsed;
+          } else if (parsed && typeof parsed === 'object') {
+            importedCases = [parsed];
+          } else {
+            throw new Error('Backup file format not recognized.');
+          }
+
+          const existingCases = loadCases();
+          importedCases.forEach(ic => {
+            if (!ic.id || existingCases.some(c => c.id === ic.id)) {
+              ic.id = 'case-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+            }
+            existingCases.push(ic);
+          });
+
+          saveCases(existingCases);
+          renderCases();
+          setBackupStatus('Encrypted backup imported and merged with existing cases.');
+          alert('Import & merge successful. Imported case(s) were added to your current list.');
+        } catch (err) {
+          console.error(err);
+          alert('Could not decrypt/import backup. Check your password and that you chose the correct file.');
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function clearAllCases() {
+      if (!confirm(
+        'This will permanently delete all cases stored in this browser on this device.\n\n' +
+        'They are only stored locally here unless you have exported an encrypted backup.\n\n' +
+        'Do you want to continue?'
+      )) {
+        return;
+      }
+      localStorage.removeItem('ny3030Cases');
+      renderCases();
+      setBackupStatus('All cases cleared from this browser.');
+    }
+
+    // --- Form / events ---
+
+    document.getElementById('case-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const clientName = document.getElementById('clientName').value.trim();
+      const docketNumber = document.getElementById('docketNumber').value.trim();
+      const chargeLevel = document.getElementById('chargeLevel').value;
+      const startDate = document.getElementById('startDate').value;
+      const ncd = document.getElementById('ncd').value;
+      const part = document.getElementById('part').value.trim();
+      const excludedDays = document.getElementById('excludedDays').value || "0";
+      const definitelyExcludedDays = document.getElementById('definitelyExcludedDays').value || "0";
+      const arguablyExcludedDays = document.getElementById('arguablyExcludedDays').value || "0";
+      const clockStopped = document.getElementById('clockStopped').checked;
+      const editingId = document.getElementById('editingId').value;
+
+      if (!clientName || !chargeLevel || !startDate) {
+        alert('Client name, charge level, and start date are required.');
+        return;
+      }
+
+      const cases = loadCases();
+
+      if (editingId) {
+        const idx = cases.findIndex(c => c.id === editingId);
+        if (idx !== -1) {
+          const existing = cases[idx];
+          const updated = {
+            ...existing,
+            clientName,
+            docketNumber,
+            chargeLevel,
+            startDate,
+            excludedDays,
+            definitelyExcludedDays,
+            arguablyExcludedDays,
+            nextCourtDate: ncd,
+            courtPart: part
+          };
+
+          if (clockStopped && !existing.clockStopped) {
+            updated.clockStopped = true;
+            updated.frozenTotalDays = daysBetween(startDate);
+          } else if (!clockStopped && existing.clockStopped) {
+            updated.clockStopped = false;
+            updated.frozenTotalDays = null;
+          } else {
+            updated.clockStopped = existing.clockStopped;
+            updated.frozenTotalDays = existing.frozenTotalDays ?? null;
+          }
+
+          cases[idx] = updated;
+        }
+      } else {
+        const newCase = {
+          id: 'case-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+          clientName,
+          docketNumber,
+          chargeLevel,
+          startDate,
+          excludedDays,
+          definitelyExcludedDays,
+          arguablyExcludedDays,
+          notes: '',
+          nextCourtDate: ncd,
+          courtPart: part,
+          assignedAda: '',
+          noteEntries: [],
+          warrant: false,
+          closed: false,
+          clockStopped,
+          frozenTotalDays: clockStopped ? daysBetween(startDate) : null,
+          cocFiled: false,
+          cocDate: '',
+          clientPhone: '',
+          clientEmail: '',
+          arraignment_date: '',
+          exWindows: pendingExWindows ? [...pendingExWindows] : [],
+          todos: []
+        };
+        cases.push(newCase);
+      }
+
+      saveCases(cases);
+
+      // reset new-case state
+      pendingExWindows = [];
+      document.getElementById('editingId').value = '';
+      document.getElementById('case-form').reset();
+      document.getElementById('excludedDays').value = "0";
+      document.getElementById('definitelyExcludedDays').value = "0";
+      document.getElementById('arguablyExcludedDays').value = "0";
+
+      renderCases();
+    });
+
+    document.getElementById('search').addEventListener('input', renderCases);
+    document.getElementById('sortMode').addEventListener('change', renderCases);
+    document.getElementById('excludeMode').addEventListener('change', renderCases);
+    document.getElementById('showWarrant').addEventListener('change', renderCases);
+    document.getElementById('showClosed').addEventListener('change', renderCases);
+    document.getElementById('showReadyOnly').addEventListener('change', renderCases);
+    document.getElementById('applyBusyFilter').addEventListener('change', renderCases);
+    document.getElementById('minCasesBusy').addEventListener('change', renderCases);
+    document.getElementById('minPartsBusy').addEventListener('change', renderCases);
+
+    document.getElementById('exportBtn').addEventListener('click', exportEncryptedBackup);
+    document.getElementById('importBtn').addEventListener('click', () => {
+      document.getElementById('importFile').click();
+    });
+    document.getElementById('importFile').addEventListener('change', handleImportFile);
+
+    document.getElementById('importMergeBtn').addEventListener('click', () => {
+      document.getElementById('importMergeFile').click();
+    });
+    document.getElementById('importMergeFile').addEventListener('change', handleImportMergeFile);
+
+    document.getElementById('clearCasesBtn').addEventListener('click', clearAllCases);
+
+    document.getElementById('advancedMainToggle').addEventListener('click', openAdvExModal);
+    document.getElementById('advancedModalToggle').addEventListener('click', () => {
+      const box = document.getElementById('advancedModalContainer');
+      box.style.display = (box.style.display === 'none' || box.style.display === '') ? 'flex' : 'none';
+      if (box.style.display !== 'none') {
+        updateModal3030Date();
+      }
+    });
+
+    document.getElementById('exCalcAddBtn').addEventListener('click', () => {
+      addExCalcRow();
+      recalcExCalcTotals();
+    });
+
+    document.getElementById('modalExAddBtn').addEventListener('click', () => {
+      addModalExRow();
+      recalcModalExTotals();
+    });
+
+    document.getElementById('caseModal').addEventListener('click', (e) => {
+      if (e.target.id === 'caseModal') {
+        closeCaseModal();
+      }
+    });
+
+    document.getElementById('advExModal').addEventListener('click', (e) => {
+      if (e.target.id === 'advExModal') {
+        closeAdvExModal();
+      }
+    });
+
+    const modalIncludeArgEl = document.getElementById('modalIncludeArg');
+    if (modalIncludeArgEl) {
+      modalIncludeArgEl.addEventListener('change', updateModal3030Date);
+    }
+
+    const modalTodoCreateBtn = document.getElementById('modalTodoCreateBtn');
+    if (modalTodoCreateBtn) {
+      modalTodoCreateBtn.addEventListener('click', () => {
+        const row = document.getElementById('modalTodoCreateRow');
+        if (!row) return;
+        row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'block' : 'none';
+      });
+    }
+
+    // Quick calculator events
+    document.getElementById('quickExAddBtn').addEventListener('click', () => {
+      addQuickExRow();
+      recalcQuickExTotals();
+    });
+    document.getElementById('quickChargeLevel').addEventListener('change', updateQuickDeadline);
+    document.getElementById('quickStartDate').addEventListener('change', updateQuickDeadline);
+
+    const showTodosBtn = document.getElementById('showTodosBtn');
+    if (showTodosBtn) {
+      showTodosBtn.addEventListener('click', () => {
+        showTodosOnly = !showTodosOnly;
+        showTodosBtn.textContent = showTodosOnly ? 'Show all cases' : 'Show cases with to-dos';
+        renderCases();
+      });
+    }
+
+    // Initial setup
+    renderCases();
+    resetExCalc();
+    resetModalExCalc();
+    resetQuickExCalc();
+  </script>
+
+  <footer style="margin-top:2rem;font-size:0.8rem;color:#6b7280;text-align:center;line-height:1.4;">
+    <p>
+      Data entered here is stored only in your browser on this device and is never transmitted to a server.
+      Use the encrypted backup feature if you need to move or preserve data between devices.
+    </p>
+    <p>
+      This tool is provided for internal reference and organizational purposes only. Attorneys are solely
+      responsible for verifying and calculating all chargeable and excludable time under CPL § 30.30 or
+      other applicable rules. No guarantee of accuracy is provided.
+    </p>
+  </footer>
+</body>
+</html>
