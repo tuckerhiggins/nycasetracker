@@ -306,6 +306,78 @@
       white-space: nowrap;
     }
 
+    /* Dashboard header */
+    .dashboard-header {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      margin-bottom: 0.75rem;
+    }
+    .today-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      padding: 0.6rem 0.8rem;
+      border-radius: 10px;
+      background: #eff6ff;
+      border-left: 4px solid #93c5fd;
+    }
+    .today-card.busy {
+      background: #fef2f2;
+      border-left-color: #ef4444;
+    }
+    .today-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6b7280;
+    }
+    .today-metric {
+      font-size: 1rem;
+      font-weight: 650;
+      color: #111827;
+    }
+    .today-sub {
+      font-size: 0.78rem;
+      color: #4b5563;
+    }
+    .week-line {
+      margin-left: 0.25rem;
+    }
+
+    /* View modes & advanced filters */
+    .view-modes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .view-mode {
+      padding: 0.25rem 0.7rem;
+      border-radius: 999px;
+      border: none;
+      font-size: 0.8rem;
+      background: #f3f4f6;
+      color: #374151;
+      cursor: pointer;
+    }
+    .view-mode.active {
+      background: #2563eb;
+      color: #ffffff;
+    }
+    .advanced-filters {
+      display: none;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 0.4rem;
+      padding: 0.4rem 0.5rem;
+      background: #f9fafb;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    .advanced-filters .field-inline {
+      min-width: 180px;
+    }
+
     @media (max-width: 700px) {
       table {
         font-size: 0.75rem;
@@ -317,12 +389,27 @@
       .modal {
         max-width: 95vw;
       }
+      .dashboard-header {
+        gap: 0.35rem;
+      }
     }
   </style>
 </head>
 <body>
   <div class="app-container">
     <h1>Case Tracker</h1>
+
+    <!-- Dashboard header -->
+    <div class="dashboard-header">
+      <div id="todayCard" class="today-card">
+        <div class="today-title">Today</div>
+        <div id="todayNcdCount" class="today-metric">0 NCDs</div>
+        <div id="todayDetails" class="today-sub">No NCDs or to-dos due today.</div>
+      </div>
+      <div id="weekSummary" class="small-text week-line">
+        This week: no NCDs or to-dos scheduled.
+      </div>
+    </div>
 
     <!-- Local backups + Quick 30.30 calculator -->
     <div class="backup-bar">
@@ -469,6 +556,7 @@
       </div>
     </div>
 
+    <!-- Filters -->
     <div class="filters-row">
       <div class="field-inline">
         <label for="sortMode">Sort by</label>
@@ -477,6 +565,39 @@
           <option value="ncd">NCD (soonest first)</option>
         </select>
       </div>
+
+      <div class="field-inline">
+        <label>View</label>
+        <div class="view-modes">
+          <button type="button" class="view-mode active" data-mode="all">All cases</button>
+          <button type="button" class="view-mode" data-mode="today">Today</button>
+          <button type="button" class="view-mode" data-mode="busy">Busy days</button>
+          <button type="button" class="view-mode" data-mode="todos">To-dos</button>
+        </div>
+      </div>
+
+      <div class="checkbox-group">
+        <label>
+          <input type="checkbox" id="showWarrant">
+          Include warrant cases
+        </label>
+        <label>
+          <input type="checkbox" id="showClosed">
+          Include closed cases
+        </label>
+        <label>
+          <input type="checkbox" id="showReadyOnly">
+          Ready cases only (COC filed)
+        </label>
+      </div>
+
+      <button type="button" class="secondary small-link" id="advancedFiltersToggle">
+        Advanced filters…
+      </button>
+    </div>
+
+    <!-- Advanced filter panel -->
+    <div id="advancedFilters" class="advanced-filters">
       <div class="field-inline">
         <label for="excludeMode">Excluded time mode</label>
         <select id="excludeMode">
@@ -485,43 +606,18 @@
         </select>
       </div>
 
-      <!-- Busy thresholds: shown only when busy filter is on -->
-      <div id="busyThresholds" style="display:none;flex-wrap:wrap;gap:0.75rem;">
-        <div class="field-inline">
-          <label for="minCasesBusy">Busy day: more than this many cases</label>
-          <input id="minCasesBusy" type="number" min="1" value="3">
-        </div>
-        <div class="field-inline">
-          <label for="minPartsBusy">…in more than this many parts</label>
-          <input id="minPartsBusy" type="number" min="1" value="2">
-        </div>
+      <div id="busyThresholds" class="field-inline">
+        <label for="minCasesBusy">Busy day: more than this many cases</label>
+        <input id="minCasesBusy" type="number" min="1" value="3">
+        <label for="minPartsBusy" style="margin-top:0.4rem;">…in more than this many parts</label>
+        <input id="minPartsBusy" type="number" min="1" value="2">
       </div>
-
-      <div class="checkbox-group">
-        <label>
-          <input type="checkbox" id="showWarrant">
-          Show warrant cases
-        </label>
-        <label>
-          <input type="checkbox" id="showClosed">
-          Show closed cases
-        </label>
-        <label>
-          <input type="checkbox" id="showReadyOnly">
-          Show ready cases only (COC filed)
-        </label>
-        <label>
-          <input type="checkbox" id="applyBusyFilter">
-          Show busy days only
-        </label>
-      </div>
-      <button type="button" class="secondary small-link" id="showTodosBtn">
-        Show cases with to-dos
-      </button>
     </div>
 
-    <!-- Busy day summary -->
-    <div id="busySummary" class="small-text" style="margin-top:0.25rem;margin-bottom:0.25rem;"></div>
+    <!-- Busy day summary (still useful as a line under filters) -->
+    <div id="busySummary" class="small-text" style="margin-top:0.25rem;margin-bottom:0.25rem;">
+      <!-- Filled in by JS -->
+    </div>
 
     <table>
       <thead>
@@ -791,7 +887,7 @@
     let exCalcRowCounter = 0;
     let modalExRowCounter = 0;
     let quickExRowCounter = 0;
-    let showTodosOnly = false;
+    let currentViewMode = 'all'; // 'all', 'today', 'busy', 'todos'
 
     // excludable windows for the new (unsaved) case from main form
     let pendingExWindows = [];
@@ -817,6 +913,11 @@
       const d = String(date.getDate()).padStart(2, '0');
       const dow = days[date.getDay()];
       return `${dow}, ${m}/${d}/${y}`;
+    }
+
+    function formatShortWeekday(date) {
+      const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      return days[date.getDay()];
     }
 
     function daysBetween(startDateStr) {
@@ -1141,7 +1242,7 @@
       return compareByClient(a, b);
     }
 
-    // --- Busy day summary ---
+    // --- Busy day + dashboard summaries ---
 
     function updateBusySummary(casesForSummary) {
       const el = document.getElementById('busySummary');
@@ -1203,20 +1304,152 @@
         `. (Busy = >${minCases} cases or >${minParts} parts.)`;
     }
 
+    function updateDashboardHeader(casesForSummary) {
+      const todayCard = document.getElementById('todayCard');
+      const todayNcdLabel = document.getElementById('todayNcdCount');
+      const todayDetails = document.getElementById('todayDetails');
+      const weekSummary = document.getElementById('weekSummary');
+      if (!todayCard || !todayNcdLabel || !todayDetails || !weekSummary) return;
+
+      const minCases = Math.max(1, parseInt(document.getElementById('minCasesBusy')?.value, 10) || 3);
+      const minParts = Math.max(1, parseInt(document.getElementById('minPartsBusy')?.value, 10) || 2);
+
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      // --- Today metrics ---
+      const todayCases = [];
+      const todayPartsSet = new Set();
+      let todayTodosDue = 0;
+
+      (casesForSummary || []).forEach(c => {
+        if (c.nextCourtDate) {
+          const d = parseLocalDate(c.nextCourtDate);
+          d.setHours(0,0,0,0);
+          if (isSameDay(d, today)) {
+            todayCases.push(c);
+            if (c.courtPart) todayPartsSet.add(c.courtPart);
+          }
+        }
+
+        if (Array.isArray(c.todos)) {
+          c.todos.forEach(t => {
+            if (!t || t.completed || !t.deadline) return;
+            try {
+              const td = parseLocalDate(t.deadline);
+              td.setHours(0,0,0,0);
+              if (isSameDay(td, today)) {
+                todayTodosDue++;
+              }
+            } catch {}
+          });
+        }
+      });
+
+      const todayNcdCount = todayCases.length;
+      const todayPartsCount = todayPartsSet.size;
+      const todayIsBusy = (todayNcdCount > minCases) || (todayPartsCount > minParts);
+
+      todayCard.classList.toggle('busy', todayIsBusy);
+      todayNcdLabel.textContent = `${todayNcdCount} NCD${todayNcdCount === 1 ? '' : 's'}`;
+
+      if (todayNcdCount === 0 && todayTodosDue === 0) {
+        todayDetails.textContent = 'No NCDs or to-dos due today.';
+      } else {
+        const partsText = `${todayPartsCount} part${todayPartsCount === 1 ? '' : 's'}`;
+        const todosText = `${todayTodosDue} to-do${todayTodosDue === 1 ? '' : 's'} due`;
+        const busyText = todayIsBusy ? ' • Busy day' : '';
+        todayDetails.textContent = `${partsText} • ${todosText}${busyText}`;
+      }
+
+      // --- This week metrics (next 7 days including today) ---
+      const weekStart = new Date(today.getTime());
+      const weekEnd = addDays(today, 6); // inclusive 7-day window
+      weekEnd.setHours(23,59,59,999);
+
+      let weekNcdCount = 0;
+      const weekPartsSet = new Set();
+      let weekTodosDue = 0;
+      const dayStats = {}; // dateStr -> { count, parts }
+
+      (casesForSummary || []).forEach(c => {
+        if (c.nextCourtDate) {
+          try {
+            const d = parseLocalDate(c.nextCourtDate);
+            d.setHours(0,0,0,0);
+            if (d >= weekStart && d <= weekEnd) {
+              const key = formatDate(d);
+              weekNcdCount++;
+              if (c.courtPart) {
+                weekPartsSet.add(c.courtPart);
+              }
+              if (!dayStats[key]) {
+                dayStats[key] = { count: 0, parts: new Set() };
+              }
+              dayStats[key].count++;
+              if (c.courtPart) dayStats[key].parts.add(c.courtPart);
+            }
+          } catch {}
+        }
+
+        if (Array.isArray(c.todos)) {
+          c.todos.forEach(t => {
+            if (!t || t.completed || !t.deadline) return;
+            try {
+              const td = parseLocalDate(t.deadline);
+              td.setHours(0,0,0,0);
+              if (td >= weekStart && td <= weekEnd) {
+                weekTodosDue++;
+              }
+            } catch {}
+          });
+        }
+      });
+
+      let busiestSnippet = '';
+      const keys = Object.keys(dayStats);
+      if (keys.length > 0) {
+        keys.sort((a, b) => parseLocalDate(a) - parseLocalDate(b));
+        let bestKey = keys[0];
+        keys.forEach(k => {
+          if (dayStats[k].count > dayStats[bestKey].count) {
+            bestKey = k;
+          }
+        });
+        const d = parseLocalDate(bestKey);
+        const short = formatShortWeekday(d);
+        const info = dayStats[bestKey];
+        const partsCount = info.parts.size;
+        busiestSnippet = ` • Busiest: ${short} (${info.count} case${info.count === 1 ? '' : 's'} in ${partsCount} part${partsCount === 1 ? '' : 's'})`;
+      }
+
+      if (weekNcdCount === 0 && weekTodosDue === 0) {
+        weekSummary.textContent = 'This week: no NCDs or to-dos scheduled.';
+      } else {
+        const partsCount = weekPartsSet.size;
+        weekSummary.textContent =
+          `This week: ${weekNcdCount} NCD${weekNcdCount === 1 ? '' : 's'} • ` +
+          `${partsCount} part${partsCount === 1 ? '' : 's'} • ` +
+          `${weekTodosDue} case${weekTodosDue === 1 ? '' : 's'} with to-dos due` +
+          busiestSnippet;
+      }
+    }
+
     // --- Rendering main table ---
 
     function renderCases() {
       const tbody = document.getElementById('casesBody');
-      let cases = loadCases();
+      const allCases = loadCases();
       const filter = document.getElementById('search').value.toLowerCase();
       const sortMode = document.getElementById('sortMode').value;
       const showWarrant = document.getElementById('showWarrant').checked;
       const showClosed = document.getElementById('showClosed').checked;
       const showReadyOnly = document.getElementById('showReadyOnly').checked;
       const excludeMode = document.getElementById('excludeMode').value;
-      const applyBusy = document.getElementById('applyBusyFilter').checked;
       const minCasesBusy = Math.max(1, parseInt(document.getElementById('minCasesBusy').value) || 3);
       const minPartsBusy = Math.max(1, parseInt(document.getElementById('minPartsBusy').value) || 2);
+
+      let cases = allCases;
 
       // Base filters: ready / warrant / closed
       cases = cases.filter(c => {
@@ -1241,12 +1474,27 @@
         });
       }
 
-      // Update busy-day summary BEFORE applying busy filter / to-do filter
+      // Update dashboard + busy-day summary based on this filtered set
       const casesForSummary = cases.slice();
       updateBusySummary(casesForSummary);
+      updateDashboardHeader(casesForSummary);
 
-      // Busy-day filter
-      if (applyBusy) {
+      // View mode: today / busy / todos
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      if (currentViewMode === 'today') {
+        cases = cases.filter(c => {
+          if (!c.nextCourtDate) return false;
+          try {
+            const d = parseLocalDate(c.nextCourtDate);
+            d.setHours(0,0,0,0);
+            return isSameDay(d, today);
+          } catch {
+            return false;
+          }
+        });
+      } else if (currentViewMode === 'busy') {
         const stats = {};
         cases.forEach(c => {
           if (!c.nextCourtDate) return;
@@ -1261,19 +1509,17 @@
           const s = stats[c.nextCourtDate];
           if (!s) return false;
           const partsCount = s.parts.size;
-          return (s.count > minCasesBusy) && (partsCount > minPartsBusy);
+          // Busy = more than minCases OR more than minParts
+          return (s.count > minCasesBusy) || (partsCount > minPartsBusy);
         });
-      }
-
-      // To-do filter
-      if (showTodosOnly) {
+      } else if (currentViewMode === 'todos') {
         cases = cases.filter(c =>
           Array.isArray(c.todos) && c.todos.some(t => t && !t.completed)
         );
       }
 
       // Sorting
-      if (showTodosOnly) {
+      if (currentViewMode === 'todos') {
         cases.sort(compareByTodoDeadlineThenClient);
       } else if (sortMode === 'ncd') {
         cases.sort(compareByNcd);
@@ -2318,6 +2564,17 @@
       setBackupStatus('All cases cleared from this browser.');
     }
 
+    // --- View mode helpers ---
+
+    function setViewMode(mode) {
+      currentViewMode = mode;
+      const buttons = document.querySelectorAll('.view-mode');
+      buttons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+      });
+      renderCases();
+    }
+
     // --- Form / events ---
 
     document.getElementById('case-form').addEventListener('submit', function(e) {
@@ -2423,13 +2680,22 @@
     document.getElementById('minCasesBusy').addEventListener('change', renderCases);
     document.getElementById('minPartsBusy').addEventListener('change', renderCases);
 
-    document.getElementById('applyBusyFilter').addEventListener('change', (e) => {
-      const checked = e.target.checked;
-      const container = document.getElementById('busyThresholds');
-      if (container) {
-        container.style.display = checked ? 'flex' : 'none';
-      }
-      renderCases();
+    // view mode buttons
+    document.querySelectorAll('.view-mode').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.mode || 'all';
+        setViewMode(mode);
+      });
+    });
+
+    // advanced filters toggle
+    document.getElementById('advancedFiltersToggle').addEventListener('click', () => {
+      const box = document.getElementById('advancedFilters');
+      if (!box) return;
+      const isHidden = box.style.display === 'none' || box.style.display === '';
+      box.style.display = isHidden ? 'flex' : 'none';
+      document.getElementById('advancedFiltersToggle').textContent =
+        isHidden ? 'Hide advanced filters' : 'Advanced filters…';
     });
 
     document.getElementById('exportBtn').addEventListener('click', exportEncryptedBackup);
@@ -2490,14 +2756,13 @@
       });
     }
 
-    const showTodosBtn = document.getElementById('showTodosBtn');
-    if (showTodosBtn) {
-      showTodosBtn.addEventListener('click', () => {
-        showTodosOnly = !showTodosOnly;
-        showTodosBtn.textContent = showTodosOnly ? 'Show all cases' : 'Show cases with to-dos';
-        renderCases();
-      });
-    }
+    // Quick calculator events
+    document.getElementById('quickExAddBtn').addEventListener('click', () => {
+      addQuickExRow();
+      recalcQuickExTotals();
+    });
+    document.getElementById('quickChargeLevel').addEventListener('change', updateQuickDeadline);
+    document.getElementById('quickStartDate').addEventListener('change', updateQuickDeadline);
 
     // Initial setup
     renderCases();
