@@ -1183,6 +1183,7 @@
       document.getElementById('modalDefExcluded').value = c.definitelyExcludedDays || "0";
       document.getElementById('modalArgExcluded').value = c.arguablyExcludedDays || "0";
       document.getElementById('modalNcd').value = c.nextCourtDate || '';
+      document.getElementById('modalArraignmentDate').value = c.arraignment_date || '';
       document.getElementById('modalPart').value = c.courtPart || '';
       document.getElementById('modalAda').value = c.assignedAda || '';
       document.getElementById('modalClockStopped').checked = !!c.clockStopped;
@@ -1267,6 +1268,7 @@
       c.clientEmail = document.getElementById('modalClientEmail').value.trim();
       c.chargeLevel = document.getElementById('modalChargeLevel').value;
       c.startDate = document.getElementById('modalStartDate').value;
+      c.arraignment_date = document.getElementById('modalArraignmentDate').value;
       c.excludedDays = document.getElementById('modalExcludedDays').value || "0";
       c.definitelyExcludedDays = document.getElementById('modalDefExcluded').value || "0";
       c.arguablyExcludedDays = document.getElementById('modalArgExcluded').value || "0";
