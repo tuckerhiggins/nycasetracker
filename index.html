@@ -578,31 +578,34 @@
         </button>
       </div>
 
-      <div class="form-row" id="advancedModalContainer" style="display:none;">
-        <div class="field">
-          <label for="modalDefExcluded">Definitely excludable days</label>
-          <input id="modalDefExcluded" type="number" min="0">
-        </div>
-        <div class="field">
-          <label for="modalArgExcluded">Arguably excludable days</label>
-          <input id="modalArgExcluded" type="number" min="0">
-        </div>
-      </div>
+      <div id="advancedModalContainer" style="display:none;">
+  <div class="form-row">
+    <div class="field">
+      <label for="modalDefExcluded">Definitely excludable days</label>
+      <input id="modalDefExcluded" type="number" min="0">
+    </div>
+    <div class="field">
+      <label for="modalArgExcluded">Arguably excludable days</label>
+      <input id="modalArgExcluded" type="number" min="0">
+    </div>
+  </div>
 
-      <div class="modal-section-title">Excludable calculator (this case)</div>
-      <p class="small-text">
-        Use windows to compute excludable time for this case. “Apply to definitely excludable” will update that field.
-      </p>
-      <div id="modalExRows"></div>
-      <button type="button" class="secondary small-link" id="modalExAddBtn" style="margin-top:0.3rem;">
-        + Add window
-      </button>
-      <div class="small-text" style="margin-top:0.5rem;">
-        Total excludable days from calculator: <span id="modalExTotal">0</span>
-      </div>
-      <button type="button" class="secondary small-link" style="margin-top:0.3rem;" onclick="applyModalExToDef()">
-        Apply total to definitely excludable
-      </button>
+  <div class="modal-section-title">Excludable calculator (this case)</div>
+  <p class="small-text">
+    Use windows to compute excludable time for this case. “Apply to definitely excludable” will update that field.
+  </p>
+  <div id="modalExRows"></div>
+  <button type="button" class="secondary small-link" id="modalExAddBtn" style="margin-top:0.3rem;">
+    + Add window
+  </button>
+  <div class="small-text" style="margin-top:0.5rem;">
+    Total excludable days from calculator: <span id="modalExTotal">0</span>
+  </div>
+  <button type="button" class="secondary small-link" style="margin-top:0.3rem;" onclick="applyModalExToDef()">
+    Apply total to definitely excludable
+  </button>
+</div>
+
 
       <div class="form-row" style="margin-top:1rem;">
         <div class="field">
