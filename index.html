@@ -327,9 +327,11 @@
         </div>
         <div class="backup-buttons">
           <button id="exportBtn" class="secondary">Export Encrypted Backup</button>
-          <button id="importBtn" class="secondary">Import Encrypted Backup</button>
+          <button id="importBtn" class="secondary">Import Encrypted Backup (replace)</button>
+          <button id="importMergeBtn" class="secondary">Import &amp; Merge Encrypted Backup</button>
           <button id="clearCasesBtn" class="danger">Clear all cases on this device</button>
           <input id="importFile" type="file" accept=".txt,.json" style="display:none;">
+          <input id="importMergeFile" type="file" accept=".txt,.json" style="display:none;">
         </div>
         <div class="small-text" id="backupStatus"></div>
       </div>
@@ -690,9 +692,10 @@
         <button class="secondary" onclick="addNoteToCurrentCase()">Add Note</button>
       </div>
 
-      <div style="margin-top: 1rem; display:flex; justify-content: space-between; gap:0.5rem;">
-        <button class="primary" onclick="saveModalChanges()">Save changes</button>
-        <button class="danger" onclick="deleteCurrentCase()">Delete case</button>
+      <div style="margin-top: 1rem; display:flex; justify-content: space-between; gap:0.5rem; flex-wrap:wrap;">
+        <button class="secondary" type="button" onclick="exportCurrentCase()">Export this case</button>
+        <button class="primary" type="button" onclick="saveModalChanges()">Save changes</button>
+        <button class="danger" type="button" onclick="deleteCurrentCase()">Delete case</button>
       </div>
     </div>
   </div>
@@ -1164,7 +1167,7 @@
         if (capDays) {
           const remaining = capDays - chargeable;
           if (remaining > 0) {
-            remainingText = `(${remaining} days from 30.30 deadline)`;
+            remainingText = `(${remaining} days remaining)`;
           } else if (remaining === 0) {
             remainingText = `(deadline today)`;
           } else {
@@ -1372,6 +1375,85 @@
       saveCases(cases);
       renderCases();
       closeCaseModal();
+    }
+
+    function exportCurrentCase() {
+      if (!currentModalCaseId) {
+        alert('Open a case first to export it.');
+        return;
+      }
+
+      const password = prompt('Enter a password to encrypt this case export:');
+      if (!password) {
+        alert('Export cancelled (no password entered).');
+        return;
+      }
+
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) {
+        alert('Could not find this case in storage.');
+        return;
+      }
+
+      const existing = cases[idx];
+
+      // Build a fresh case object from the current modal fields without mutating storage
+      const exported = {
+        ...existing,
+        clientName: document.getElementById('modalClientName').value.trim(),
+        docketNumber: document.getElementById('modalDocketNumber').value.trim(),
+        clientPhone: document.getElementById('modalClientPhone').value.trim(),
+        clientEmail: document.getElementById('modalClientEmail').value.trim(),
+        chargeLevel: document.getElementById('modalChargeLevel').value,
+        startDate: document.getElementById('modalStartDate').value,
+        arraignment_date: document.getElementById('modalArraignmentDate').value,
+        excludedDays: document.getElementById('modalExcludedDays').value || "0",
+        definitelyExcludedDays: document.getElementById('modalDefExcluded').value || "0",
+        arguablyExcludedDays: document.getElementById('modalArgExcluded').value || "0",
+        nextCourtDate: document.getElementById('modalNcd').value,
+        courtPart: document.getElementById('modalPart').value.trim(),
+        assignedAda: document.getElementById('modalAda').value.trim(),
+        cocFiled: document.getElementById('modalCocFiled').checked,
+        cocDate: document.getElementById('modalCocDate').value,
+        warrant: document.getElementById('modalWarrant').checked,
+        closed: document.getElementById('modalClosed').checked,
+        clockStopped: document.getElementById('modalClockStopped').checked,
+        exWindows: collectModalExWindows()
+      };
+
+      // Handle frozenTotalDays for export based on clockStopped state
+      let frozen = existing.frozenTotalDays ?? null;
+      const newClockStopped = exported.clockStopped;
+      const wasStopped = existing.clockStopped;
+      if (!wasStopped && newClockStopped) {
+        frozen = daysBetween(exported.startDate);
+      } else if (wasStopped && !newClockStopped) {
+        frozen = null;
+      }
+      exported.frozenTotalDays = frozen;
+
+      try {
+        const plaintext = JSON.stringify(exported);
+        const ciphertext = CryptoJS.AES.encrypt(plaintext, password).toString();
+
+        const blob = new Blob([ciphertext], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const safeName = (exported.clientName || 'case').replace(/[^a-z0-9\-]+/gi, '_');
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `nycasetracker-case-${safeName}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        alert('Encrypted single-case export created. You\'ll need this password to import it on another device.');
+      } catch (err) {
+        console.error(err);
+        alert('Something went wrong exporting this case.');
+      }
     }
 
     // --- Advanced excludable modal (main form) ---
@@ -1818,8 +1900,61 @@
 
           saveCases(importedCases);
           renderCases();
-          setBackupStatus('Backup imported successfully onto this device.');
-          alert('Import successful. Your cases are now loaded on this computer.');
+          setBackupStatus('Backup imported successfully onto this device (existing cases replaced).');
+          alert('Import successful. Your cases are now loaded on this computer, replacing previous cases.');
+        } catch (err) {
+          console.error(err);
+          alert('Could not decrypt/import backup. Check your password and that you chose the correct file.');
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function handleImportMergeFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const password = getBackupPassword();
+      if (!password) {
+        event.target.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const ciphertext = e.target.result;
+          const bytes = CryptoJS.AES.decrypt(ciphertext, password);
+          const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+
+          if (!plaintext) {
+            throw new Error('Decryption resulted in empty text (wrong password or corrupt file).');
+          }
+
+          const parsed = JSON.parse(plaintext);
+          let importedCases;
+          if (Array.isArray(parsed)) {
+            importedCases = parsed;
+          } else if (parsed && typeof parsed === 'object') {
+            importedCases = [parsed];
+          } else {
+            throw new Error('Backup file format not recognized.');
+          }
+
+          const existingCases = loadCases();
+          importedCases.forEach(ic => {
+            if (!ic.id || existingCases.some(c => c.id === ic.id)) {
+              ic.id = 'case-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+            }
+            existingCases.push(ic);
+          });
+
+          saveCases(existingCases);
+          renderCases();
+          setBackupStatus('Encrypted backup imported and merged with existing cases.');
+          alert('Import & merge successful. Imported case(s) were added to your current list.');
         } catch (err) {
           console.error(err);
           alert('Could not decrypt/import backup. Check your password and that you chose the correct file.');
@@ -1953,6 +2088,12 @@
       document.getElementById('importFile').click();
     });
     document.getElementById('importFile').addEventListener('change', handleImportFile);
+
+    document.getElementById('importMergeBtn').addEventListener('click', () => {
+      document.getElementById('importMergeFile').click();
+    });
+    document.getElementById('importMergeFile').addEventListener('change', handleImportMergeFile);
+
     document.getElementById('clearCasesBtn').addEventListener('click', clearAllCases);
 
     document.getElementById('advancedMainToggle').addEventListener('click', openAdvExModal);
