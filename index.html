@@ -78,6 +78,7 @@
       padding: 0.4rem 0.5rem;
       border-bottom: 1px solid #e5e7eb;
       text-align: left;
+      vertical-align: top;
     }
     th {
       background: #f3f4f6;
@@ -283,11 +284,15 @@
     }
     .excalc-row input[type="date"] {
       min-width: 120px;
-      flex: 1;
+      flex: 0 0 auto;
+    }
+    .excalc-row input[type="text"] {
+      flex: 1 1 140px;
     }
     .excalc-days {
       font-size: 0.8rem;
       color: #374151;
+      white-space: nowrap;
     }
 
     @media (max-width: 700px) {
@@ -317,16 +322,14 @@
           <label for="backupPassword">Backup password (for encrypted export/import)</label>
           <input id="backupPassword" type="password" placeholder="Set a password you'll remember">
           <div class="small-text">
-            Used only to encrypt/decrypt full-caseload backups you move between computers.
+            Used only to encrypt/decrypt backups you move between computers.
           </div>
         </div>
         <div class="backup-buttons">
           <button id="exportBtn" class="secondary">Export Encrypted Backup</button>
-          <button id="importBtn" class="secondary">Import Encrypted Backup (replace)</button>
-          <button id="mergeImportBtn" class="secondary">Import &amp; Merge Cases</button>
+          <button id="importBtn" class="secondary">Import Encrypted Backup</button>
           <button id="clearCasesBtn" class="danger">Clear all cases on this device</button>
           <input id="importFile" type="file" accept=".txt,.json" style="display:none;">
-          <input id="mergeFile" type="file" accept=".txt,.json" style="display:none;">
         </div>
         <div class="small-text" id="backupStatus"></div>
       </div>
@@ -399,18 +402,10 @@
         <div class="form-row">
           <div class="field">
             <label for="startDate">Clock Start Date</label>
+            <input id="startDate" type="date" required>
             <div class="small-text" style="color:#6b7280;margin-top:0.25rem;">
               Typically the day the accusatory instrument was filed (CPL § 1.20[17]).
             </div>
-            <input id="startDate" type="date" required>
-          </div>
-          <div class="field">
-            <label for="arraignmentDate">Arraignment Date (optional)</label>
-            <input id="arraignmentDate" type="date">
-            <label class="small-text" style="display:flex;align-items:center;gap:0.25rem;margin-top:0.25rem;">
-              <input type="checkbox" id="arraignmentSameAsStart">
-              Same as Clock Start Date
-            </label>
           </div>
           <div class="field">
             <label for="ncd">Next Court Date (NCD)</label>
@@ -427,17 +422,17 @@
             <label for="excludedDays">Excluded Days (simple total)</label>
             <input id="excludedDays" type="number" min="0" value="0">
             <div class="small-text">
-              For quick use, just put the total excludable days here.
+              For quick use, just put the total excludable days here. Advanced windows will auto-fill this.
             </div>
             <button type="button" class="secondary small-link" id="advancedMainToggle" style="margin-top:0.4rem;">
               Advanced excludable…
             </button>
           </div>
 
-          <!-- Hidden container for advanced values; edited via modal -->
+          <!-- Hidden container for advanced totals; edited via modal windows -->
           <div class="field" id="advancedMainContainer" style="display:none;">
-            <input id="definitelyExcludedDays" type="number" min="0" value="0">
-            <input id="arguablyExcludedDays" type="number" min="0" value="0">
+            <input id="definitelyExcludedDays" type="hidden" value="0">
+            <input id="arguablyExcludedDays" type="hidden" value="0">
           </div>
 
           <div class="field" style="align-self:flex-end;">
@@ -568,10 +563,10 @@
         </div>
         <div class="field">
           <label for="modalStartDate">Clock Start Date</label>
+          <input id="modalStartDate" type="date">
           <div class="small-text" style="color:#6b7280;margin-top:0.25rem;">
             Typically the day the accusatory instrument was filed (CPL § 1.20[17]).
           </div>
-          <input id="modalStartDate" type="date">
         </div>
         <div class="field">
           <label for="modalArraignmentDate">Arraignment Date (optional)</label>
@@ -593,30 +588,44 @@
         <div class="form-row">
           <div class="field">
             <label for="modalDefExcluded">Definitely excludable days</label>
-            <input id="modalDefExcluded" type="number" min="0">
+            <input id="modalDefExcluded" type="number" min="0" readonly>
           </div>
           <div class="field">
             <label for="modalArgExcluded">Arguably excludable days</label>
-            <input id="modalArgExcluded" type="number" min="0">
+            <input id="modalArgExcluded" type="number" min="0" readonly>
           </div>
         </div>
 
-        <div class="modal-section-title">Excludable windows (this case)</div>
+        <div class="modal-section-title">Excludable calculator (this case)</div>
         <p class="small-text">
-          Each window counts toward excludable time. If “Arguably excludable” is checked, that window’s days are
-          treated as arguably excludable only; otherwise they count as definitely excludable. “Excluded Days (simple)”
-          is always the sum of definitely + arguably excludable.
+          Add windows of excludable time with reasons. Windows marked “Arg. excludable” will
+          be counted as arguably excludable; others count as definitely excludable. Simple excluded
+          days = definitely + arguably.
         </p>
         <div id="modalExRows"></div>
         <button type="button" class="secondary small-link" id="modalExAddBtn" style="margin-top:0.3rem;">
           + Add window
         </button>
         <div class="small-text" style="margin-top:0.5rem;">
-          Total excludable days from windows: <span id="modalExTotal">0</span>
+          Definitely excludable from windows: <span id="modalExDefTotal">0</span>
         </div>
-        <button type="button" class="secondary small-link" style="margin-top:0.3rem;" onclick="applyModalExToDef()">
-          Apply total to definitely excludable
-        </button>
+        <div class="small-text">
+          Arguably excludable from windows: <span id="modalExArgTotal">0</span>
+        </div>
+        <div class="small-text">
+          Total excludable (simple): <span id="modalExTotal">0</span>
+        </div>
+
+        <div class="modal-section-title" style="margin-top:0.75rem;">30.30 Date (this case)</div>
+        <div class="small-text">
+          30.30 Date: <span id="modal3030Date"></span>
+        </div>
+        <div class="small-text">
+          <label>
+            <input type="checkbox" id="modalIncludeArg" checked>
+            Include arguably excludable days
+          </label>
+        </div>
       </div>
 
       <div class="form-row" style="margin-top:1rem;">
@@ -681,9 +690,8 @@
         <button class="secondary" onclick="addNoteToCurrentCase()">Add Note</button>
       </div>
 
-      <div style="margin-top: 1rem; display:flex; justify-content: space-between; gap:0.5rem; flex-wrap:wrap;">
+      <div style="margin-top: 1rem; display:flex; justify-content: space-between; gap:0.5rem;">
         <button class="primary" onclick="saveModalChanges()">Save changes</button>
-        <button class="secondary" type="button" onclick="exportCurrentCase()">Export this case</button>
         <button class="danger" onclick="deleteCurrentCase()">Delete case</button>
       </div>
     </div>
@@ -697,20 +705,11 @@
         <button class="modal-close" onclick="closeAdvExModal()">×</button>
       </div>
 
-      <div class="form-row">
-        <div class="field">
-          <label for="advDefDays">Definitely excludable days</label>
-          <input id="advDefDays" type="number" min="0" value="0">
-        </div>
-        <div class="field">
-          <label for="advArgDays">Arguably excludable days</label>
-          <input id="advArgDays" type="number" min="0" value="0">
-        </div>
-      </div>
-
-      <div class="modal-section-title">Excludable calculator</div>
+      <div class="modal-section-title">Excludable calculator (new case)</div>
       <p class="small-text">
-        Add one or more windows of excludable time. Days are counted as calendar days (inclusive of start and end).
+        Add one or more windows of excludable time with reasons. Windows marked “Arg. excludable”
+        are treated as arguably excludable; others are definitely excludable. Simple excluded days
+        on the main form will always equal definitely + arguably.
       </p>
 
       <div id="exCalcRows"></div>
@@ -720,11 +719,16 @@
       </button>
 
       <div class="small-text" style="margin-top:0.5rem;">
-        Total excludable days from calculator: <span id="exCalcTotal">0</span>
+        Definitely excludable from windows: <span id="exCalcDefTotal">0</span>
+      </div>
+      <div class="small-text">
+        Arguably excludable from windows: <span id="exCalcArgTotal">0</span>
+      </div>
+      <div class="small-text">
+        Total excludable (simple): <span id="exCalcTotal">0</span>
       </div>
 
       <div style="margin-top: 1rem; display:flex; justify-content: flex-end; gap:0.5rem;">
-        <button class="secondary" type="button" onclick="applyExCalcToDef()">Use total as definitely excludable</button>
         <button class="primary" type="button" onclick="saveAdvExAndClose()">Done</button>
       </div>
     </div>
@@ -738,6 +742,9 @@
     let exCalcRowCounter = 0;
     let modalExRowCounter = 0;
     let quickExRowCounter = 0;
+
+    // excludable windows for the new (unsaved) case from main form
+    let pendingExWindows = [];
 
     // --- Date helpers ---
 
@@ -955,7 +962,7 @@
 
       const extended = addDays(baseDeadline, exDays || 0);
       const { adjustedDate, tooltip } = adjustForWeekendOrHoliday(extended);
-      return { dateStr: formatDateWithWeekday(adjustedDate), tooltip };
+      return { dateStr: formatDateWithWeekday(adjustedDate), tooltip, dateObj: adjustedDate };
     }
 
     function ncdClass(nextCourtDateStr) {
@@ -1000,8 +1007,15 @@
           cocDate: c.cocDate || '',
           clientPhone: c.clientPhone || '',
           clientEmail: c.clientEmail || '',
-          exWindows: Array.isArray(c.exWindows) ? c.exWindows : [],
-          arraignment_date: c.arraignment_date || ''
+          arraignment_date: c.arraignment_date || '',
+          exWindows: Array.isArray(c.exWindows)
+            ? c.exWindows.map(w => ({
+                start: w.start || '',
+                end: w.end || '',
+                reason: w.reason || '',
+                arguable: !!w.arguable
+              }))
+            : []
         }));
       } catch {
         return [];
@@ -1124,9 +1138,9 @@
           totalDays = daysBetween(c.startDate);
         }
 
-        const simpleExcluded = Number(c.excludedDays) || 0;
         const defEx = Number(c.definitelyExcludedDays) || 0;
         const argEx = Number(c.arguablyExcludedDays) || 0;
+        const simpleExcluded = Number(c.excludedDays) || 0;
 
         let excluded = simpleExcluded;
         let excludedDetail = `${simpleExcluded} (simple total)`;
@@ -1145,6 +1159,18 @@
 
         const { capDays, deadlineStr, tooltip } = computeCapAndDeadline(c.chargeLevel, c.startDate);
         const ncdCls = ncdClass(c.nextCourtDate);
+
+        let remainingText = '';
+        if (capDays) {
+          const remaining = capDays - chargeable;
+          if (remaining > 0) {
+            remainingText = `(${remaining} days remaining)`;
+          } else if (remaining === 0) {
+            remainingText = `(deadline today)`;
+          } else {
+            remainingText = `${Math.abs(remaining)} days past deadline`;
+          }
+        }
 
         const tr = document.createElement('tr');
         if (c.warrant) tr.classList.add('row-warrant');
@@ -1167,7 +1193,10 @@
           <td>${chargeable}</td>
           <td>${capDays || ''}</td>
           <td title="${tooltip || ''}">${deadlineStr || ''}</td>
-          <td class="${ncdCls}">${c.nextCourtDate || ''}</td>
+          <td class="${ncdCls}">
+            ${c.nextCourtDate || ''}
+            ${remainingText ? `<div class="small-text">${remainingText}</div>` : ''}
+          </td>
           <td>${c.courtPart || ''}</td>
         `;
 
@@ -1180,22 +1209,6 @@
     }
 
     // --- Case modal logic ---
-
-    function renderModalNotes(notes) {
-      const list = document.getElementById('modalNotesList');
-      list.innerHTML = '';
-      if (!notes || notes.length === 0) {
-        const li = document.createElement('li');
-        li.textContent = 'No notes yet.';
-        list.appendChild(li);
-        return;
-      }
-      notes.forEach(n => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span class="note-date">${n.date || ''}</span>: ${n.text || ''}`;
-        list.appendChild(li);
-      });
-    }
 
     function openCaseModal(id) {
       const cases = loadCases();
@@ -1222,6 +1235,7 @@
       document.getElementById('modalClosed').checked = !!c.closed;
       document.getElementById('modalCocFiled').checked = !!c.cocFiled;
       document.getElementById('modalCocDate').value = c.cocDate || '';
+      document.getElementById('modalIncludeArg').checked = true; // default
 
       document.getElementById('modalNoteDate').value = '';
       document.getElementById('modalNoteText').value = '';
@@ -1235,14 +1249,30 @@
         advModal.style.display = 'none';
       }
 
-      resetModalExCalc(c.exWindows || []);
-      syncModalExcludedFromDefArg();
+      loadModalExCalc(c.exWindows || []);
+
       document.getElementById('caseModal').style.display = 'flex';
     }
 
     function closeCaseModal() {
       currentModalCaseId = null;
       document.getElementById('caseModal').style.display = 'none';
+    }
+
+    function renderModalNotes(notes) {
+      const list = document.getElementById('modalNotesList');
+      list.innerHTML = '';
+      if (!notes || notes.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'No notes yet.';
+        list.appendChild(li);
+        return;
+      }
+      notes.forEach(n => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="note-date">${n.date || ''}</span>: ${n.text || ''}`;
+        list.appendChild(li);
+      });
     }
 
     function addNoteToCurrentCase() {
@@ -1270,13 +1300,27 @@
       renderModalNotes(caseObj.noteEntries);
     }
 
-    function syncModalExcludedFromDefArg() {
-      const def = Number(document.getElementById('modalDefExcluded').value) || 0;
-      const arg = Number(document.getElementById('modalArgExcluded').value) || 0;
-      document.getElementById('modalExcludedDays').value = def + arg;
+    function collectModalExWindows() {
+      const rows = Array.from(document.querySelectorAll('#modalExRows .excalc-row'));
+      const windows = [];
+      rows.forEach(row => {
+        const startVal = row.querySelector('.modal-ex-start').value;
+        const endVal = row.querySelector('.modal-ex-end').value;
+        const reasonVal = row.querySelector('.modal-ex-reason').value.trim();
+        const argChecked = row.querySelector('.modal-ex-arg').checked;
+        if (startVal || endVal || reasonVal) {
+          windows.push({
+            start: startVal,
+            end: endVal,
+            reason: reasonVal,
+            arguable: argChecked
+          });
+        }
+      });
+      return windows;
     }
 
-    function saveModalChanges(skipClose) {
+    function saveModalChanges() {
       if (!currentModalCaseId) return;
       const cases = loadCases();
       const idx = cases.findIndex(c => c.id === currentModalCaseId);
@@ -1298,6 +1342,8 @@
       c.courtPart = document.getElementById('modalPart').value.trim();
       c.assignedAda = document.getElementById('modalAda').value.trim();
 
+      c.exWindows = collectModalExWindows();
+
       const newClockStopped = document.getElementById('modalClockStopped').checked;
       const wasStopped = c.clockStopped;
 
@@ -1313,21 +1359,9 @@
       c.cocFiled = document.getElementById('modalCocFiled').checked;
       c.cocDate = document.getElementById('modalCocDate').value;
 
-      // Persist excludable windows
-      const rows = Array.from(document.querySelectorAll('#modalExRows .excalc-row'));
-      c.exWindows = rows.map(row => {
-        const startVal = row.querySelector('.modal-ex-start').value || '';
-        const endVal = row.querySelector('.modal-ex-end').value || '';
-        const reasonVal = row.querySelector('.modal-ex-reason').value.trim() || '';
-        const arguable = row.querySelector('.modal-ex-arguably').checked;
-        return { start: startVal, end: endVal, reason: reasonVal, arguably: arguable };
-      });
-
       saveCases(cases);
       renderCases();
-      if (!skipClose) {
-        closeCaseModal();
-      }
+      closeCaseModal();
     }
 
     function deleteCurrentCase() {
@@ -1343,12 +1377,17 @@
     // --- Advanced excludable modal (main form) ---
 
     function openAdvExModal() {
-      const defHidden = document.getElementById('definitelyExcludedDays');
-      const argHidden = document.getElementById('arguablyExcludedDays');
-      document.getElementById('advDefDays').value = defHidden.value || "0";
-      document.getElementById('advArgDays').value = argHidden.value || "0";
+      const container = document.getElementById('exCalcRows');
+      container.innerHTML = '';
+      exCalcRowCounter = 0;
 
-      resetExCalc();
+      if (!pendingExWindows || pendingExWindows.length === 0) {
+        addExCalcRow();
+      } else {
+        pendingExWindows.forEach(w => addExCalcRow(w));
+      }
+
+      recalcExCalcTotals();
       document.getElementById('advExModal').style.display = 'flex';
     }
 
@@ -1357,27 +1396,17 @@
     }
 
     function saveAdvExAndClose() {
-      const defHidden = document.getElementById('definitelyExcludedDays');
-      const argHidden = document.getElementById('arguablyExcludedDays');
-      defHidden.value = document.getElementById('advDefDays').value || "0";
-      argHidden.value = document.getElementById('advArgDays').value || "0";
       closeAdvExModal();
     }
 
-    function applyExCalcToDef() {
-      const total = Number(document.getElementById('exCalcTotal').textContent) || 0;
-      document.getElementById('advDefDays').value = String(total);
-    }
-
     function resetExCalc() {
+      pendingExWindows = [];
       const container = document.getElementById('exCalcRows');
-      container.innerHTML = '';
+      if (container) container.innerHTML = '';
       exCalcRowCounter = 0;
-      addExCalcRow();
-      recalcExCalcTotals();
     }
 
-    function addExCalcRow() {
+    function addExCalcRow(existing) {
       const container = document.getElementById('exCalcRows');
       const rowId = ++exCalcRowCounter;
       const row = document.createElement('div');
@@ -1387,16 +1416,31 @@
       row.innerHTML = `
         <input type="date" class="excalc-start">
         <input type="date" class="excalc-end">
+        <input type="text" class="excalc-reason" placeholder="Excludable reason">
+        <label style="font-size:0.8rem;">
+          <input type="checkbox" class="excalc-arg"> Arg. excludable
+        </label>
         <span class="excalc-days">0 days</span>
         <button type="button" class="secondary small-link excalc-remove" title="Remove window">×</button>
       `;
 
       const startInput = row.querySelector('.excalc-start');
       const endInput = row.querySelector('.excalc-end');
+      const reasonInput = row.querySelector('.excalc-reason');
+      const argCheckbox = row.querySelector('.excalc-arg');
       const removeBtn = row.querySelector('.excalc-remove');
+
+      if (existing) {
+        startInput.value = existing.start || '';
+        endInput.value = existing.end || '';
+        reasonInput.value = existing.reason || '';
+        argCheckbox.checked = !!existing.arguable;
+      }
 
       startInput.addEventListener('change', recalcExCalcTotals);
       endInput.addEventListener('change', recalcExCalcTotals);
+      reasonInput.addEventListener('input', recalcExCalcTotals);
+      argCheckbox.addEventListener('change', recalcExCalcTotals);
       removeBtn.addEventListener('click', () => {
         row.remove();
         recalcExCalcTotals();
@@ -1407,46 +1451,84 @@
 
     function recalcExCalcTotals() {
       const rows = Array.from(document.querySelectorAll('#exCalcRows .excalc-row'));
-      let total = 0;
+      let totalDef = 0;
+      let totalArg = 0;
+      const windows = [];
 
       rows.forEach(row => {
         const startVal = row.querySelector('.excalc-start').value;
         const endVal = row.querySelector('.excalc-end').value;
+        const reasonVal = row.querySelector('.excalc-reason').value.trim();
+        const argChecked = row.querySelector('.excalc-arg').checked;
         let days = 0;
+
         if (startVal && endVal) {
           const s = parseLocalDate(startVal);
           const e = parseLocalDate(endVal);
           if (e >= s) {
             days = daysBetweenDates(s, e) + 1; // inclusive
+            if (argChecked) totalArg += days;
+            else totalDef += days;
           }
         }
         row.querySelector('.excalc-days').textContent = `${days} day${days === 1 ? '' : 's'}`;
-        total += days;
+
+        if (startVal || endVal || reasonVal) {
+          windows.push({
+            start: startVal,
+            end: endVal,
+            reason: reasonVal,
+            arguable: argChecked
+          });
+        }
       });
 
-      document.getElementById('exCalcTotal').textContent = String(total);
+      pendingExWindows = windows;
+
+      const defTotal = totalDef;
+      const argTotal = totalArg;
+      const simpleTotal = defTotal + argTotal;
+
+      const defSpan = document.getElementById('exCalcDefTotal');
+      const argSpan = document.getElementById('exCalcArgTotal');
+      const totalSpan = document.getElementById('exCalcTotal');
+
+      if (defSpan) defSpan.textContent = String(defTotal);
+      if (argSpan) argSpan.textContent = String(argTotal);
+      if (totalSpan) totalSpan.textContent = String(simpleTotal);
+
+      const defHidden = document.getElementById('definitelyExcludedDays');
+      const argHidden = document.getElementById('arguablyExcludedDays');
+      const simpleInput = document.getElementById('excludedDays');
+
+      if (defHidden) defHidden.value = String(defTotal);
+      if (argHidden) argHidden.value = String(argTotal);
+      if (simpleInput) simpleInput.value = String(simpleTotal);
     }
 
     // --- Modal excludable calculator (per case) ---
 
-    function resetModalExCalc(exWindows) {
+    function resetModalExCalc() {
+      const container = document.getElementById('modalExRows');
+      if (container) container.innerHTML = '';
+      modalExRowCounter = 0;
+    }
+
+    function loadModalExCalc(exWindows) {
       const container = document.getElementById('modalExRows');
       container.innerHTML = '';
       modalExRowCounter = 0;
 
-      if (!exWindows || exWindows.length === 0) {
+      if (exWindows && exWindows.length > 0) {
+        exWindows.forEach(w => addModalExRow(w));
+      } else {
         addModalExRow();
-        recalcModalExTotals();
-        return;
       }
 
-      exWindows.forEach(win => {
-        addModalExRow(win);
-      });
       recalcModalExTotals();
     }
 
-    function addModalExRow(win) {
+    function addModalExRow(existing) {
       const container = document.getElementById('modalExRows');
       const rowId = ++modalExRowCounter;
       const row = document.createElement('div');
@@ -1457,9 +1539,8 @@
         <input type="date" class="modal-ex-start">
         <input type="date" class="modal-ex-end">
         <input type="text" class="modal-ex-reason" placeholder="Excludable reason">
-        <label class="small-text" style="display:flex;align-items:center;gap:0.25rem;">
-          <input type="checkbox" class="modal-ex-arguably">
-          Arguably excludable
+        <label style="font-size:0.8rem;">
+          <input type="checkbox" class="modal-ex-arg"> Arg. excludable
         </label>
         <span class="excalc-days">0 days</span>
         <button type="button" class="secondary small-link modal-ex-remove" title="Remove window">×</button>
@@ -1468,19 +1549,20 @@
       const startInput = row.querySelector('.modal-ex-start');
       const endInput = row.querySelector('.modal-ex-end');
       const reasonInput = row.querySelector('.modal-ex-reason');
-      const arguableInput = row.querySelector('.modal-ex-arguably');
+      const argCheckbox = row.querySelector('.modal-ex-arg');
       const removeBtn = row.querySelector('.modal-ex-remove');
 
-      if (win) {
-        if (win.start) startInput.value = win.start;
-        if (win.end) endInput.value = win.end;
-        if (win.reason) reasonInput.value = win.reason;
-        arguableInput.checked = !!win.arguably;
+      if (existing) {
+        startInput.value = existing.start || '';
+        endInput.value = existing.end || '';
+        reasonInput.value = existing.reason || '';
+        argCheckbox.checked = !!existing.arguable;
       }
 
       startInput.addEventListener('change', recalcModalExTotals);
       endInput.addEventListener('change', recalcModalExTotals);
-      arguableInput.addEventListener('change', recalcModalExTotals);
+      reasonInput.addEventListener('input', recalcModalExTotals);
+      argCheckbox.addEventListener('change', recalcModalExTotals);
       removeBtn.addEventListener('click', () => {
         row.remove();
         recalcModalExTotals();
@@ -1489,43 +1571,92 @@
       container.appendChild(row);
     }
 
+    function updateModal3030Date() {
+      const span = document.getElementById('modal3030Date');
+      if (!span) return;
+
+      const level = document.getElementById('modalChargeLevel').value;
+      const startStr = document.getElementById('modalStartDate').value;
+      const def = Number(document.getElementById('modalDefExcluded').value) || 0;
+      const arg = Number(document.getElementById('modalArgExcluded').value) || 0;
+      const includeArg = document.getElementById('modalIncludeArg').checked;
+
+      if (!level || !startStr) {
+        span.textContent = '';
+        span.title = '';
+        return;
+      }
+
+      const extraDays = def + (includeArg ? arg : 0);
+      const res = computeQuickDeadline(level, startStr, extraDays);
+      if (!res || !res.dateObj) {
+        span.textContent = '';
+        span.title = '';
+        return;
+      }
+
+      const deadlineDate = res.dateObj;
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const dCopy = new Date(deadlineDate.getTime());
+      dCopy.setHours(0,0,0,0);
+      const diffDays = Math.floor((dCopy - today) / (1000 * 60 * 60 * 24));
+
+      let diffText;
+      if (diffDays > 0) {
+        diffText = `${diffDays} day${diffDays === 1 ? '' : 's'} from today`;
+      } else if (diffDays === 0) {
+        diffText = 'today';
+      } else {
+        const n = Math.abs(diffDays);
+        diffText = `${n} day${n === 1 ? '' : 's'} ago`;
+      }
+
+      span.textContent = `${res.dateStr} (${diffText})`;
+      span.title = res.tooltip || '';
+    }
+
     function recalcModalExTotals() {
       const rows = Array.from(document.querySelectorAll('#modalExRows .excalc-row'));
-      let defTotal = 0;
-      let argTotal = 0;
+      let totalDef = 0;
+      let totalArg = 0;
 
       rows.forEach(row => {
         const startVal = row.querySelector('.modal-ex-start').value;
         const endVal = row.querySelector('.modal-ex-end').value;
-        const arguable = row.querySelector('.modal-ex-arguably').checked;
+        const argChecked = row.querySelector('.modal-ex-arg').checked;
         let days = 0;
         if (startVal && endVal) {
           const s = parseLocalDate(startVal);
           const e = parseLocalDate(endVal);
           if (e >= s) {
             days = daysBetweenDates(s, e) + 1;
+            if (argChecked) totalArg += days;
+            else totalDef += days;
           }
-        }
-        if (arguable) {
-          argTotal += days;
-        } else {
-          defTotal += days;
         }
         row.querySelector('.excalc-days').textContent = `${days} day${days === 1 ? '' : 's'}`;
       });
 
-      const simpleTotal = defTotal + argTotal;
-      document.getElementById('modalExTotal').textContent = String(simpleTotal);
-      document.getElementById('modalDefExcluded').value = String(defTotal);
-      document.getElementById('modalArgExcluded').value = String(argTotal);
-      syncModalExcludedFromDefArg();
-    }
+      const defInput = document.getElementById('modalDefExcluded');
+      const argInput = document.getElementById('modalArgExcluded');
+      const simpleInput = document.getElementById('modalExcludedDays');
+      const defSpan = document.getElementById('modalExDefTotal');
+      const argSpan = document.getElementById('modalExArgTotal');
+      const totalSpan = document.getElementById('modalExTotal');
 
-    function applyModalExToDef() {
-      const simpleTotal = Number(document.getElementById('modalExTotal').textContent) || 0;
-      document.getElementById('modalDefExcluded').value = String(simpleTotal);
-      document.getElementById('modalArgExcluded').value = "0";
-      syncModalExcludedFromDefArg();
+      const defTotal = totalDef;
+      const argTotal = totalArg;
+      const simpleTotal = defTotal + argTotal;
+
+      if (defInput) defInput.value = String(defTotal);
+      if (argInput) argInput.value = String(argTotal);
+      if (simpleInput) simpleInput.value = String(simpleTotal);
+      if (defSpan) defSpan.textContent = String(defTotal);
+      if (argSpan) argSpan.textContent = String(argTotal);
+      if (totalSpan) totalSpan.textContent = String(simpleTotal);
+
+      updateModal3030Date();
     }
 
     // --- Quick 30.30 calculator ---
@@ -1611,7 +1742,7 @@
       span.title = res.tooltip || '';
     }
 
-    // --- Local encrypted backup (full caseload) ---
+    // --- Local encrypted backup ---
 
     function setBackupStatus(msg) {
       document.getElementById('backupStatus').innerText = msg || '';
@@ -1687,59 +1818,8 @@
 
           saveCases(importedCases);
           renderCases();
-          setBackupStatus('Backup imported successfully onto this device (replaced existing cases).');
+          setBackupStatus('Backup imported successfully onto this device.');
           alert('Import successful. Your cases are now loaded on this computer.');
-        } catch (err) {
-          console.error(err);
-          alert('Could not decrypt/import backup. Check your password and that you chose the correct file.');
-        } finally {
-          event.target.value = '';
-        }
-      };
-      reader.readAsText(file);
-    }
-
-    function handleMergeFile(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const password = prompt('Enter the password used to encrypt this backup or exported case:');
-      if (!password) {
-        event.target.value = '';
-        alert('Merge canceled (no password provided).');
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const ciphertext = e.target.result;
-          const bytes = CryptoJS.AES.decrypt(ciphertext, password);
-          const plaintext = bytes.toString(CryptoJS.enc.Utf8);
-
-          if (!plaintext) {
-            throw new Error('Decryption resulted in empty text (wrong password or corrupt file).');
-          }
-
-          let imported = JSON.parse(plaintext);
-          if (!Array.isArray(imported)) {
-            imported = [imported];
-          }
-
-          const current = loadCases();
-          imported.forEach(icase => {
-            const idx = current.findIndex(c => c.id === icase.id);
-            if (idx === -1) {
-              current.push(icase);
-            } else {
-              current[idx] = icase;
-            }
-          });
-
-          saveCases(current);
-          renderCases();
-          setBackupStatus(`Merge import successful: ${imported.length} case(s) merged.`);
-          alert('Merge import successful.');
         } catch (err) {
           console.error(err);
           alert('Could not decrypt/import backup. Check your password and that you chose the correct file.');
@@ -1763,54 +1843,6 @@
       setBackupStatus('All cases cleared from this browser.');
     }
 
-    // --- Single-case export ---
-
-    function exportCurrentCase() {
-      if (!currentModalCaseId) {
-        alert('Open a case to export it.');
-        return;
-      }
-      const caseId = currentModalCaseId;
-
-      // Persist current modal changes without closing
-      saveModalChanges(true);
-
-      const cases = loadCases();
-      const c = cases.find(c => c.id === caseId);
-      if (!c) {
-        alert('Could not find this case in storage.');
-        return;
-      }
-
-      const password = prompt('Enter a password to encrypt this exported case. You will need this password to import it.');
-      if (!password) {
-        alert('Export canceled (no password provided).');
-        return;
-      }
-
-      try {
-        const plaintext = JSON.stringify([c]);
-        const ciphertext = CryptoJS.AES.encrypt(plaintext, password).toString();
-
-        const safeName = (c.docketNumber || c.clientName || 'case').replace(/[^a-z0-9_\-]+/gi, '_');
-        const blob = new Blob([ciphertext], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `nycasetracker-case-${safeName}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        setBackupStatus('Single case exported. Share only with someone you trust and send the password separately.');
-      } catch (err) {
-        console.error(err);
-        alert('Something went wrong exporting this case.');
-      }
-    }
-
     // --- Form / events ---
 
     document.getElementById('case-form').addEventListener('submit', function(e) {
@@ -1826,12 +1858,6 @@
       const arguablyExcludedDays = document.getElementById('arguablyExcludedDays').value || "0";
       const clockStopped = document.getElementById('clockStopped').checked;
       const editingId = document.getElementById('editingId').value;
-
-      const arraignmentSame = document.getElementById('arraignmentSameAsStart').checked;
-      let arraignmentDate = document.getElementById('arraignmentDate').value;
-      if (arraignmentSame && startDate) {
-        arraignmentDate = startDate;
-      }
 
       if (!clientName || !chargeLevel || !startDate) {
         alert('Client name, charge level, and start date are required.');
@@ -1854,8 +1880,7 @@
             definitelyExcludedDays,
             arguablyExcludedDays,
             nextCourtDate: ncd,
-            courtPart: part,
-            arraignment_date: arraignmentDate
+            courtPart: part
           };
 
           if (clockStopped && !existing.clockStopped) {
@@ -1894,42 +1919,24 @@
           cocDate: '',
           clientPhone: '',
           clientEmail: '',
-          exWindows: [],
-          arraignment_date: arraignmentDate
+          arraignment_date: '',
+          exWindows: pendingExWindows ? [...pendingExWindows] : []
         };
         cases.push(newCase);
       }
 
       saveCases(cases);
 
+      // reset new-case state
+      pendingExWindows = [];
       document.getElementById('editingId').value = '';
       document.getElementById('case-form').reset();
       document.getElementById('excludedDays').value = "0";
       document.getElementById('definitelyExcludedDays').value = "0";
       document.getElementById('arguablyExcludedDays').value = "0";
-      document.getElementById('arraignmentSameAsStart').checked = false;
 
       renderCases();
     });
-
-    // Keep arraignment = start date if box checked
-    document.getElementById('arraignmentSameAsStart').addEventListener('change', () => {
-      const cb = document.getElementById('arraignmentSameAsStart');
-      const start = document.getElementById('startDate').value;
-      if (cb.checked && start) {
-        document.getElementById('arraignmentDate').value = start;
-      }
-    });
-
-    document.getElementById('startDate').addEventListener('change', () => {
-      const cb = document.getElementById('arraignmentSameAsStart');
-      if (cb.checked) {
-        document.getElementById('arraignmentDate').value = document.getElementById('startDate').value;
-      }
-    });
-
-    document.getElementById('modalDefExcluded').addEventListener('input', syncModalExcludedFromDefArg);
-    document.getElementById('modalArgExcluded').addEventListener('input', syncModalExcludedFromDefArg);
 
     document.getElementById('search').addEventListener('input', renderCases);
     document.getElementById('sortMode').addEventListener('change', renderCases);
@@ -1946,18 +1953,15 @@
       document.getElementById('importFile').click();
     });
     document.getElementById('importFile').addEventListener('change', handleImportFile);
-
-    document.getElementById('mergeImportBtn').addEventListener('click', () => {
-      document.getElementById('mergeFile').click();
-    });
-    document.getElementById('mergeFile').addEventListener('change', handleMergeFile);
-
     document.getElementById('clearCasesBtn').addEventListener('click', clearAllCases);
 
     document.getElementById('advancedMainToggle').addEventListener('click', openAdvExModal);
     document.getElementById('advancedModalToggle').addEventListener('click', () => {
       const box = document.getElementById('advancedModalContainer');
       box.style.display = (box.style.display === 'none' || box.style.display === '') ? 'flex' : 'none';
+      if (box.style.display !== 'none') {
+        updateModal3030Date();
+      }
     });
 
     document.getElementById('exCalcAddBtn').addEventListener('click', () => {
@@ -1982,6 +1986,11 @@
       }
     });
 
+    const modalIncludeArgEl = document.getElementById('modalIncludeArg');
+    if (modalIncludeArgEl) {
+      modalIncludeArgEl.addEventListener('change', updateModal3030Date);
+    }
+
     // Quick calculator events
     document.getElementById('quickExAddBtn').addEventListener('click', () => {
       addQuickExRow();
@@ -1993,14 +2002,14 @@
     // Initial setup
     renderCases();
     resetExCalc();
-    resetModalExCalc([]);
+    resetModalExCalc();
     resetQuickExCalc();
   </script>
 
   <footer style="margin-top:2rem;font-size:0.8rem;color:#6b7280;text-align:center;line-height:1.4;">
     <p>
       Data entered here is stored only in your browser on this device and is never transmitted to a server.
-      Use the encrypted backup or single-case export features if you need to move or preserve data between devices.
+      Use the encrypted backup feature if you need to move or preserve data between devices.
     </p>
     <p>
       This tool is provided for internal reference and organizational purposes only. Attorneys are solely
