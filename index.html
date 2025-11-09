@@ -150,7 +150,7 @@
       flex-wrap: wrap;
       gap: 0.75rem;
       margin-bottom: 0.5rem;
-      align-items: center;
+      align-items: flex-start;
     }
     .filters-row .field-inline {
       display: flex;
@@ -323,6 +323,7 @@
         <div class="backup-buttons">
           <button id="exportBtn" class="secondary">Export Encrypted Backup</button>
           <button id="importBtn" class="secondary">Import Encrypted Backup</button>
+          <button id="clearCasesBtn" class="danger">Clear all cases on this device</button>
           <input id="importFile" type="file" accept=".txt,.json" style="display:none;">
         </div>
         <div class="small-text" id="backupStatus"></div>
@@ -361,6 +362,13 @@
           30.30 deadline: <span id="quickDeadline" title="" style="font-weight:600;"></span>
         </div>
       </div>
+    </div>
+
+    <!-- Security note -->
+    <div class="small-text" style="margin-bottom:1rem;">
+      Data is stored only in this browser’s local storage on this device and is not synced to any server.
+      Do <strong>not</strong> use this tool on shared or public computers. Use the encrypted backup options
+      if you need to move or preserve your data.
     </div>
 
     <div class="top-bar">
@@ -436,7 +444,7 @@
 
       <div class="field search-input">
         <label for="search">Filter Cases</label>
-        <input id="search" placeholder="Search by client, docket, ADA, notes...">
+        <input id="search" placeholder="Search by client, docket, ADA, notes, phone, email...">
       </div>
     </div>
 
@@ -455,6 +463,14 @@
           <option value="defPlusArg">Definitely + arguably excludable</option>
         </select>
       </div>
+      <div class="field-inline">
+        <label for="minCasesBusy">Busy day: more than this many cases</label>
+        <input id="minCasesBusy" type="number" min="1" value="1">
+      </div>
+      <div class="field-inline">
+        <label for="minPartsBusy">…in more than this many parts</label>
+        <input id="minPartsBusy" type="number" min="1" value="1">
+      </div>
       <div class="checkbox-group">
         <label>
           <input type="checkbox" id="showWarrant">
@@ -467,6 +483,10 @@
         <label>
           <input type="checkbox" id="showReadyOnly">
           Show ready cases only (COC filed)
+        </label>
+        <label>
+          <input type="checkbox" id="applyBusyFilter">
+          Apply busy day filter
         </label>
       </div>
     </div>
@@ -508,6 +528,17 @@
         <div class="field">
           <label for="modalDocketNumber">Docket / Indictment #</label>
           <input id="modalDocketNumber">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label for="modalClientPhone">Client phone</label>
+          <input id="modalClientPhone" type="tel" placeholder="(555) 123-4567">
+        </div>
+        <div class="field">
+          <label for="modalClientEmail">Client email</label>
+          <input id="modalClientEmail" type="email" placeholder="client@example.com">
         </div>
       </div>
 
@@ -932,7 +963,9 @@
           clockStopped: !!c.clockStopped,
           frozenTotalDays: typeof c.frozenTotalDays === 'number' ? c.frozenTotalDays : null,
           cocFiled: !!c.cocFiled,
-          cocDate: c.cocDate || ''
+          cocDate: c.cocDate || '',
+          clientPhone: c.clientPhone || '',
+          clientEmail: c.clientEmail || ''
         }));
       } catch {
         return [];
@@ -987,7 +1020,11 @@
       const showClosed = document.getElementById('showClosed').checked;
       const showReadyOnly = document.getElementById('showReadyOnly').checked;
       const excludeMode = document.getElementById('excludeMode').value;
+      const applyBusy = document.getElementById('applyBusyFilter').checked;
+      const minCasesBusy = Math.max(1, parseInt(document.getElementById('minCasesBusy').value) || 1);
+      const minPartsBusy = Math.max(1, parseInt(document.getElementById('minPartsBusy').value) || 1);
 
+      // Base filters: ready / warrant / closed
       cases = cases.filter(c => {
         if (showReadyOnly && !c.cocFiled) return false;
         if (c.closed && !showClosed) return false;
@@ -995,18 +1032,43 @@
         return true;
       });
 
+      // Text search
       if (filter) {
         cases = cases.filter(c => {
           const combinedText = (
             c.clientName + ' ' +
             c.docketNumber + ' ' +
             (c.notes || '') + ' ' +
-            (c.assignedAda || '')
+            (c.assignedAda || '') + ' ' +
+            (c.clientPhone || '') + ' ' +
+            (c.clientEmail || '')
           ).toLowerCase();
           return combinedText.includes(filter);
         });
       }
 
+      // Busy-day filter: show only cases whose NCD is on a date
+      // where you have > minCasesBusy cases AND > minPartsBusy parts.
+      if (applyBusy) {
+        const stats = {};
+        cases.forEach(c => {
+          if (!c.nextCourtDate) return;
+          const key = c.nextCourtDate;
+          if (!stats[key]) stats[key] = { count: 0, parts: new Set() };
+          stats[key].count++;
+          if (c.courtPart) stats[key].parts.add(c.courtPart);
+        });
+
+        cases = cases.filter(c => {
+          if (!c.nextCourtDate) return false;
+          const s = stats[c.nextCourtDate];
+          if (!s) return false;
+          const partsCount = s.parts.size;
+          return (s.count > minCasesBusy) && (partsCount > minPartsBusy);
+        });
+      }
+
+      // Sorting
       if (sortMode === 'ncd') {
         cases.sort(compareByNcd);
       } else {
@@ -1093,6 +1155,8 @@
       document.getElementById('modalTitle').textContent = c.clientName || 'Case Details';
       document.getElementById('modalClientName').value = c.clientName || '';
       document.getElementById('modalDocketNumber').value = c.docketNumber || '';
+      document.getElementById('modalClientPhone').value = c.clientPhone || '';
+      document.getElementById('modalClientEmail').value = c.clientEmail || '';
       document.getElementById('modalChargeLevel').value = c.chargeLevel || '';
       document.getElementById('modalStartDate').value = c.startDate || '';
       document.getElementById('modalExcludedDays').value = c.excludedDays || "0";
@@ -1179,6 +1243,8 @@
 
       c.clientName = document.getElementById('modalClientName').value.trim();
       c.docketNumber = document.getElementById('modalDocketNumber').value.trim();
+      c.clientPhone = document.getElementById('modalClientPhone').value.trim();
+      c.clientEmail = document.getElementById('modalClientEmail').value.trim();
       c.chargeLevel = document.getElementById('modalChargeLevel').value;
       c.startDate = document.getElementById('modalStartDate').value;
       c.excludedDays = document.getElementById('modalExcludedDays').value || "0";
@@ -1541,6 +1607,19 @@
       reader.readAsText(file);
     }
 
+    function clearAllCases() {
+      if (!confirm(
+        'This will permanently delete all cases stored in this browser on this device.\n\n' +
+        'They are only stored locally here unless you have exported an encrypted backup.\n\n' +
+        'Do you want to continue?'
+      )) {
+        return;
+      }
+      localStorage.removeItem('ny3030Cases');
+      renderCases();
+      setBackupStatus('All cases cleared from this browser.');
+    }
+
     // --- Form / events ---
 
     document.getElementById('case-form').addEventListener('submit', function(e) {
@@ -1614,7 +1693,9 @@
           clockStopped,
           frozenTotalDays: clockStopped ? daysBetween(startDate) : null,
           cocFiled: false,
-          cocDate: ''
+          cocDate: '',
+          clientPhone: '',
+          clientEmail: ''
         };
         cases.push(newCase);
       }
@@ -1636,12 +1717,16 @@
     document.getElementById('showWarrant').addEventListener('change', renderCases);
     document.getElementById('showClosed').addEventListener('change', renderCases);
     document.getElementById('showReadyOnly').addEventListener('change', renderCases);
+    document.getElementById('applyBusyFilter').addEventListener('change', renderCases);
+    document.getElementById('minCasesBusy').addEventListener('change', renderCases);
+    document.getElementById('minPartsBusy').addEventListener('change', renderCases);
 
     document.getElementById('exportBtn').addEventListener('click', exportEncryptedBackup);
     document.getElementById('importBtn').addEventListener('click', () => {
       document.getElementById('importFile').click();
     });
     document.getElementById('importFile').addEventListener('change', handleImportFile);
+    document.getElementById('clearCasesBtn').addEventListener('click', clearAllCases);
 
     document.getElementById('advancedMainToggle').addEventListener('click', openAdvExModal);
     document.getElementById('advancedModalToggle').addEventListener('click', () => {
