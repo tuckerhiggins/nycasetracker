@@ -1083,8 +1083,7 @@
         });
       }
 
-      // Busy-day filter: show only cases whose NCD is on a date
-      // where you have > minCasesBusy cases AND > minPartsBusy parts.
+      // Busy-day filter
       if (applyBusy) {
         const stats = {};
         cases.forEach(c => {
@@ -1182,6 +1181,22 @@
 
     // --- Case modal logic ---
 
+    function renderModalNotes(notes) {
+      const list = document.getElementById('modalNotesList');
+      list.innerHTML = '';
+      if (!notes || notes.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'No notes yet.';
+        list.appendChild(li);
+        return;
+      }
+      notes.forEach(n => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="note-date">${n.date || ''}</span>: ${n.text || ''}`;
+        list.appendChild(li);
+      });
+    }
+
     function openCaseModal(id) {
       const cases = loadCases();
       const c = cases.find(c => c.id === id);
@@ -1214,7 +1229,7 @@
       renderModalNotes(c.noteEntries || []);
 
       const advModal = document.getElementById('advancedModalContainer');
-      if ((Number(c.definitelyExcludedDays) || 0) > 0 || (Number(c.arguablyExcludedDays) || 0) > 0) {
+      if ((Number(c.definitelyExcludedDays) || 0) > 0 || (Number(c.arguablyExcludedDays) || 0) > 0 || (c.exWindows && c.exWindows.length > 0)) {
         advModal.style.display = 'flex';
       } else {
         advModal.style.display = 'none';
@@ -1230,15 +1245,768 @@
       document.getElementById('caseModal').style.display = 'none';
     }
 
-    function renderModalNotes(notes) {
-      const list = document.getElementById('modalNotesList');
-      list.innerHTML = '';
-      if (!notes || notes.length === 0) {
-        const li = document.createElement('li');
-        li.textContent = 'No notes yet.';
-        list.appendChild(li);
+    function addNoteToCurrentCase() {
+      if (!currentModalCaseId) return;
+      const date = document.getElementById('modalNoteDate').value;
+      const text = document.getElementById('modalNoteText').value.trim();
+      if (!date && !text) {
+        alert('Enter a date and/or note text.');
         return;
       }
-      notes.forEach(n => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span class="note-date
+
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const caseObj = cases[idx];
+      if (!Array.isArray(caseObj.noteEntries)) {
+        caseObj.noteEntries = [];
+      }
+      caseObj.noteEntries.push({ date, text });
+      saveCases(cases);
+
+      document.getElementById('modalNoteDate').value = '';
+      document.getElementById('modalNoteText').value = '';
+      renderModalNotes(caseObj.noteEntries);
+    }
+
+    function syncModalExcludedFromDefArg() {
+      const def = Number(document.getElementById('modalDefExcluded').value) || 0;
+      const arg = Number(document.getElementById('modalArgExcluded').value) || 0;
+      document.getElementById('modalExcludedDays').value = def + arg;
+    }
+
+    function saveModalChanges(skipClose) {
+      if (!currentModalCaseId) return;
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const c = cases[idx];
+
+      c.clientName = document.getElementById('modalClientName').value.trim();
+      c.docketNumber = document.getElementById('modalDocketNumber').value.trim();
+      c.clientPhone = document.getElementById('modalClientPhone').value.trim();
+      c.clientEmail = document.getElementById('modalClientEmail').value.trim();
+      c.chargeLevel = document.getElementById('modalChargeLevel').value;
+      c.startDate = document.getElementById('modalStartDate').value;
+      c.arraignment_date = document.getElementById('modalArraignmentDate').value;
+      c.excludedDays = document.getElementById('modalExcludedDays').value || "0";
+      c.definitelyExcludedDays = document.getElementById('modalDefExcluded').value || "0";
+      c.arguablyExcludedDays = document.getElementById('modalArgExcluded').value || "0";
+      c.nextCourtDate = document.getElementById('modalNcd').value;
+      c.courtPart = document.getElementById('modalPart').value.trim();
+      c.assignedAda = document.getElementById('modalAda').value.trim();
+
+      const newClockStopped = document.getElementById('modalClockStopped').checked;
+      const wasStopped = c.clockStopped;
+
+      if (!wasStopped && newClockStopped) {
+        c.frozenTotalDays = daysBetween(c.startDate);
+      } else if (wasStopped && !newClockStopped) {
+        c.frozenTotalDays = null;
+      }
+
+      c.clockStopped = newClockStopped;
+      c.warrant = document.getElementById('modalWarrant').checked;
+      c.closed = document.getElementById('modalClosed').checked;
+      c.cocFiled = document.getElementById('modalCocFiled').checked;
+      c.cocDate = document.getElementById('modalCocDate').value;
+
+      // Persist excludable windows
+      const rows = Array.from(document.querySelectorAll('#modalExRows .excalc-row'));
+      c.exWindows = rows.map(row => {
+        const startVal = row.querySelector('.modal-ex-start').value || '';
+        const endVal = row.querySelector('.modal-ex-end').value || '';
+        const reasonVal = row.querySelector('.modal-ex-reason').value.trim() || '';
+        const arguable = row.querySelector('.modal-ex-arguably').checked;
+        return { start: startVal, end: endVal, reason: reasonVal, arguably: arguable };
+      });
+
+      saveCases(cases);
+      renderCases();
+      if (!skipClose) {
+        closeCaseModal();
+      }
+    }
+
+    function deleteCurrentCase() {
+      if (!currentModalCaseId) return;
+      if (!confirm('Delete this case from your tracker?')) return;
+
+      const cases = loadCases().filter(c => c.id !== currentModalCaseId);
+      saveCases(cases);
+      renderCases();
+      closeCaseModal();
+    }
+
+    // --- Advanced excludable modal (main form) ---
+
+    function openAdvExModal() {
+      const defHidden = document.getElementById('definitelyExcludedDays');
+      const argHidden = document.getElementById('arguablyExcludedDays');
+      document.getElementById('advDefDays').value = defHidden.value || "0";
+      document.getElementById('advArgDays').value = argHidden.value || "0";
+
+      resetExCalc();
+      document.getElementById('advExModal').style.display = 'flex';
+    }
+
+    function closeAdvExModal() {
+      document.getElementById('advExModal').style.display = 'none';
+    }
+
+    function saveAdvExAndClose() {
+      const defHidden = document.getElementById('definitelyExcludedDays');
+      const argHidden = document.getElementById('arguablyExcludedDays');
+      defHidden.value = document.getElementById('advDefDays').value || "0";
+      argHidden.value = document.getElementById('advArgDays').value || "0";
+      closeAdvExModal();
+    }
+
+    function applyExCalcToDef() {
+      const total = Number(document.getElementById('exCalcTotal').textContent) || 0;
+      document.getElementById('advDefDays').value = String(total);
+    }
+
+    function resetExCalc() {
+      const container = document.getElementById('exCalcRows');
+      container.innerHTML = '';
+      exCalcRowCounter = 0;
+      addExCalcRow();
+      recalcExCalcTotals();
+    }
+
+    function addExCalcRow() {
+      const container = document.getElementById('exCalcRows');
+      const rowId = ++exCalcRowCounter;
+      const row = document.createElement('div');
+      row.className = 'excalc-row';
+      row.dataset.rowId = rowId;
+
+      row.innerHTML = `
+        <input type="date" class="excalc-start">
+        <input type="date" class="excalc-end">
+        <span class="excalc-days">0 days</span>
+        <button type="button" class="secondary small-link excalc-remove" title="Remove window">×</button>
+      `;
+
+      const startInput = row.querySelector('.excalc-start');
+      const endInput = row.querySelector('.excalc-end');
+      const removeBtn = row.querySelector('.excalc-remove');
+
+      startInput.addEventListener('change', recalcExCalcTotals);
+      endInput.addEventListener('change', recalcExCalcTotals);
+      removeBtn.addEventListener('click', () => {
+        row.remove();
+        recalcExCalcTotals();
+      });
+
+      container.appendChild(row);
+    }
+
+    function recalcExCalcTotals() {
+      const rows = Array.from(document.querySelectorAll('#exCalcRows .excalc-row'));
+      let total = 0;
+
+      rows.forEach(row => {
+        const startVal = row.querySelector('.excalc-start').value;
+        const endVal = row.querySelector('.excalc-end').value;
+        let days = 0;
+        if (startVal && endVal) {
+          const s = parseLocalDate(startVal);
+          const e = parseLocalDate(endVal);
+          if (e >= s) {
+            days = daysBetweenDates(s, e) + 1; // inclusive
+          }
+        }
+        row.querySelector('.excalc-days').textContent = `${days} day${days === 1 ? '' : 's'}`;
+        total += days;
+      });
+
+      document.getElementById('exCalcTotal').textContent = String(total);
+    }
+
+    // --- Modal excludable calculator (per case) ---
+
+    function resetModalExCalc(exWindows) {
+      const container = document.getElementById('modalExRows');
+      container.innerHTML = '';
+      modalExRowCounter = 0;
+
+      if (!exWindows || exWindows.length === 0) {
+        addModalExRow();
+        recalcModalExTotals();
+        return;
+      }
+
+      exWindows.forEach(win => {
+        addModalExRow(win);
+      });
+      recalcModalExTotals();
+    }
+
+    function addModalExRow(win) {
+      const container = document.getElementById('modalExRows');
+      const rowId = ++modalExRowCounter;
+      const row = document.createElement('div');
+      row.className = 'excalc-row';
+      row.dataset.rowId = rowId;
+
+      row.innerHTML = `
+        <input type="date" class="modal-ex-start">
+        <input type="date" class="modal-ex-end">
+        <input type="text" class="modal-ex-reason" placeholder="Excludable reason">
+        <label class="small-text" style="display:flex;align-items:center;gap:0.25rem;">
+          <input type="checkbox" class="modal-ex-arguably">
+          Arguably excludable
+        </label>
+        <span class="excalc-days">0 days</span>
+        <button type="button" class="secondary small-link modal-ex-remove" title="Remove window">×</button>
+      `;
+
+      const startInput = row.querySelector('.modal-ex-start');
+      const endInput = row.querySelector('.modal-ex-end');
+      const reasonInput = row.querySelector('.modal-ex-reason');
+      const arguableInput = row.querySelector('.modal-ex-arguably');
+      const removeBtn = row.querySelector('.modal-ex-remove');
+
+      if (win) {
+        if (win.start) startInput.value = win.start;
+        if (win.end) endInput.value = win.end;
+        if (win.reason) reasonInput.value = win.reason;
+        arguableInput.checked = !!win.arguably;
+      }
+
+      startInput.addEventListener('change', recalcModalExTotals);
+      endInput.addEventListener('change', recalcModalExTotals);
+      arguableInput.addEventListener('change', recalcModalExTotals);
+      removeBtn.addEventListener('click', () => {
+        row.remove();
+        recalcModalExTotals();
+      });
+
+      container.appendChild(row);
+    }
+
+    function recalcModalExTotals() {
+      const rows = Array.from(document.querySelectorAll('#modalExRows .excalc-row'));
+      let defTotal = 0;
+      let argTotal = 0;
+
+      rows.forEach(row => {
+        const startVal = row.querySelector('.modal-ex-start').value;
+        const endVal = row.querySelector('.modal-ex-end').value;
+        const arguable = row.querySelector('.modal-ex-arguably').checked;
+        let days = 0;
+        if (startVal && endVal) {
+          const s = parseLocalDate(startVal);
+          const e = parseLocalDate(endVal);
+          if (e >= s) {
+            days = daysBetweenDates(s, e) + 1;
+          }
+        }
+        if (arguable) {
+          argTotal += days;
+        } else {
+          defTotal += days;
+        }
+        row.querySelector('.excalc-days').textContent = `${days} day${days === 1 ? '' : 's'}`;
+      });
+
+      const simpleTotal = defTotal + argTotal;
+      document.getElementById('modalExTotal').textContent = String(simpleTotal);
+      document.getElementById('modalDefExcluded').value = String(defTotal);
+      document.getElementById('modalArgExcluded').value = String(argTotal);
+      syncModalExcludedFromDefArg();
+    }
+
+    function applyModalExToDef() {
+      const simpleTotal = Number(document.getElementById('modalExTotal').textContent) || 0;
+      document.getElementById('modalDefExcluded').value = String(simpleTotal);
+      document.getElementById('modalArgExcluded').value = "0";
+      syncModalExcludedFromDefArg();
+    }
+
+    // --- Quick 30.30 calculator ---
+
+    function resetQuickExCalc() {
+      const container = document.getElementById('quickExRows');
+      container.innerHTML = '';
+      quickExRowCounter = 0;
+      addQuickExRow();
+      recalcQuickExTotals();
+    }
+
+    function addQuickExRow() {
+      const container = document.getElementById('quickExRows');
+      const rowId = ++quickExRowCounter;
+      const row = document.createElement('div');
+      row.className = 'excalc-row';
+      row.dataset.rowId = rowId;
+
+      row.innerHTML = `
+        <input type="date" class="quick-ex-start">
+        <input type="date" class="quick-ex-end">
+        <span class="excalc-days">0 days</span>
+        <button type="button" class="secondary small-link quick-ex-remove" title="Remove window">×</button>
+      `;
+
+      const startInput = row.querySelector('.quick-ex-start');
+      const endInput = row.querySelector('.quick-ex-end');
+      const removeBtn = row.querySelector('.quick-ex-remove');
+
+      startInput.addEventListener('change', recalcQuickExTotals);
+      endInput.addEventListener('change', recalcQuickExTotals);
+      removeBtn.addEventListener('click', () => {
+        row.remove();
+        recalcQuickExTotals();
+      });
+
+      container.appendChild(row);
+    }
+
+    function recalcQuickExTotals() {
+      const rows = Array.from(document.querySelectorAll('#quickExRows .excalc-row'));
+      let total = 0;
+
+      rows.forEach(row => {
+        const startVal = row.querySelector('.quick-ex-start').value;
+        const endVal = row.querySelector('.quick-ex-end').value;
+        let days = 0;
+        if (startVal && endVal) {
+          const s = parseLocalDate(startVal);
+          const e = parseLocalDate(endVal);
+          if (e >= s) {
+            days = daysBetweenDates(s, e) + 1;
+          }
+        }
+        row.querySelector('.excalc-days').textContent = `${days} day${days === 1 ? '' : 's'}`;
+        total += days;
+      });
+
+      document.getElementById('quickExTotal').textContent = String(total);
+      updateQuickDeadline();
+    }
+
+    function updateQuickDeadline() {
+      const level = document.getElementById('quickChargeLevel').value;
+      const startStr = document.getElementById('quickStartDate').value;
+      const exDays = Number(document.getElementById('quickExTotal').textContent) || 0;
+      const span = document.getElementById('quickDeadline');
+
+      if (!level || !startStr) {
+        span.textContent = '';
+        span.title = '';
+        return;
+      }
+
+      const res = computeQuickDeadline(level, startStr, exDays);
+      if (!res) {
+        span.textContent = '';
+        span.title = '';
+        return;
+      }
+      span.textContent = res.dateStr;
+      span.title = res.tooltip || '';
+    }
+
+    // --- Local encrypted backup (full caseload) ---
+
+    function setBackupStatus(msg) {
+      document.getElementById('backupStatus').innerText = msg || '';
+    }
+
+    function getBackupPassword() {
+      const pw = document.getElementById('backupPassword').value;
+      if (!pw) {
+        alert('Enter a backup password first.');
+        return null;
+      }
+      return pw;
+    }
+
+    function exportEncryptedBackup() {
+      const password = getBackupPassword();
+      if (!password) return;
+
+      const cases = loadCases();
+      if (!cases || cases.length === 0) {
+        if (!confirm('You currently have no cases stored. Export an empty backup?')) {
+          return;
+        }
+      }
+
+      try {
+        const plaintext = JSON.stringify(cases);
+        const ciphertext = CryptoJS.AES.encrypt(plaintext, password).toString();
+
+        const blob = new Blob([ciphertext], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'nycasetracker-backup.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        setBackupStatus('Encrypted backup exported. Keep the file and password safe.');
+      } catch (err) {
+        console.error(err);
+        alert('Something went wrong creating the backup.');
+      }
+    }
+
+    function handleImportFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const password = getBackupPassword();
+      if (!password) {
+        event.target.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const ciphertext = e.target.result;
+          const bytes = CryptoJS.AES.decrypt(ciphertext, password);
+          const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+
+          if (!plaintext) {
+            throw new Error('Decryption resulted in empty text (wrong password or corrupt file).');
+          }
+
+          const importedCases = JSON.parse(plaintext);
+          if (!Array.isArray(importedCases)) {
+            throw new Error('Backup file format not recognized.');
+          }
+
+          saveCases(importedCases);
+          renderCases();
+          setBackupStatus('Backup imported successfully onto this device (replaced existing cases).');
+          alert('Import successful. Your cases are now loaded on this computer.');
+        } catch (err) {
+          console.error(err);
+          alert('Could not decrypt/import backup. Check your password and that you chose the correct file.');
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function handleMergeFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const password = prompt('Enter the password used to encrypt this backup or exported case:');
+      if (!password) {
+        event.target.value = '';
+        alert('Merge canceled (no password provided).');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const ciphertext = e.target.result;
+          const bytes = CryptoJS.AES.decrypt(ciphertext, password);
+          const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+
+          if (!plaintext) {
+            throw new Error('Decryption resulted in empty text (wrong password or corrupt file).');
+          }
+
+          let imported = JSON.parse(plaintext);
+          if (!Array.isArray(imported)) {
+            imported = [imported];
+          }
+
+          const current = loadCases();
+          imported.forEach(icase => {
+            const idx = current.findIndex(c => c.id === icase.id);
+            if (idx === -1) {
+              current.push(icase);
+            } else {
+              current[idx] = icase;
+            }
+          });
+
+          saveCases(current);
+          renderCases();
+          setBackupStatus(`Merge import successful: ${imported.length} case(s) merged.`);
+          alert('Merge import successful.');
+        } catch (err) {
+          console.error(err);
+          alert('Could not decrypt/import backup. Check your password and that you chose the correct file.');
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function clearAllCases() {
+      if (!confirm(
+        'This will permanently delete all cases stored in this browser on this device.\n\n' +
+        'They are only stored locally here unless you have exported an encrypted backup.\n\n' +
+        'Do you want to continue?'
+      )) {
+        return;
+      }
+      localStorage.removeItem('ny3030Cases');
+      renderCases();
+      setBackupStatus('All cases cleared from this browser.');
+    }
+
+    // --- Single-case export ---
+
+    function exportCurrentCase() {
+      if (!currentModalCaseId) {
+        alert('Open a case to export it.');
+        return;
+      }
+      const caseId = currentModalCaseId;
+
+      // Persist current modal changes without closing
+      saveModalChanges(true);
+
+      const cases = loadCases();
+      const c = cases.find(c => c.id === caseId);
+      if (!c) {
+        alert('Could not find this case in storage.');
+        return;
+      }
+
+      const password = prompt('Enter a password to encrypt this exported case. You will need this password to import it.');
+      if (!password) {
+        alert('Export canceled (no password provided).');
+        return;
+      }
+
+      try {
+        const plaintext = JSON.stringify([c]);
+        const ciphertext = CryptoJS.AES.encrypt(plaintext, password).toString();
+
+        const safeName = (c.docketNumber || c.clientName || 'case').replace(/[^a-z0-9_\-]+/gi, '_');
+        const blob = new Blob([ciphertext], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `nycasetracker-case-${safeName}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        setBackupStatus('Single case exported. Share only with someone you trust and send the password separately.');
+      } catch (err) {
+        console.error(err);
+        alert('Something went wrong exporting this case.');
+      }
+    }
+
+    // --- Form / events ---
+
+    document.getElementById('case-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const clientName = document.getElementById('clientName').value.trim();
+      const docketNumber = document.getElementById('docketNumber').value.trim();
+      const chargeLevel = document.getElementById('chargeLevel').value;
+      const startDate = document.getElementById('startDate').value;
+      const ncd = document.getElementById('ncd').value;
+      const part = document.getElementById('part').value.trim();
+      const excludedDays = document.getElementById('excludedDays').value || "0";
+      const definitelyExcludedDays = document.getElementById('definitelyExcludedDays').value || "0";
+      const arguablyExcludedDays = document.getElementById('arguablyExcludedDays').value || "0";
+      const clockStopped = document.getElementById('clockStopped').checked;
+      const editingId = document.getElementById('editingId').value;
+
+      const arraignmentSame = document.getElementById('arraignmentSameAsStart').checked;
+      let arraignmentDate = document.getElementById('arraignmentDate').value;
+      if (arraignmentSame && startDate) {
+        arraignmentDate = startDate;
+      }
+
+      if (!clientName || !chargeLevel || !startDate) {
+        alert('Client name, charge level, and start date are required.');
+        return;
+      }
+
+      const cases = loadCases();
+
+      if (editingId) {
+        const idx = cases.findIndex(c => c.id === editingId);
+        if (idx !== -1) {
+          const existing = cases[idx];
+          const updated = {
+            ...existing,
+            clientName,
+            docketNumber,
+            chargeLevel,
+            startDate,
+            excludedDays,
+            definitelyExcludedDays,
+            arguablyExcludedDays,
+            nextCourtDate: ncd,
+            courtPart: part,
+            arraignment_date: arraignmentDate
+          };
+
+          if (clockStopped && !existing.clockStopped) {
+            updated.clockStopped = true;
+            updated.frozenTotalDays = daysBetween(startDate);
+          } else if (!clockStopped && existing.clockStopped) {
+            updated.clockStopped = false;
+            updated.frozenTotalDays = null;
+          } else {
+            updated.clockStopped = existing.clockStopped;
+            updated.frozenTotalDays = existing.frozenTotalDays ?? null;
+          }
+
+          cases[idx] = updated;
+        }
+      } else {
+        const newCase = {
+          id: 'case-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+          clientName,
+          docketNumber,
+          chargeLevel,
+          startDate,
+          excludedDays,
+          definitelyExcludedDays,
+          arguablyExcludedDays,
+          notes: '',
+          nextCourtDate: ncd,
+          courtPart: part,
+          assignedAda: '',
+          noteEntries: [],
+          warrant: false,
+          closed: false,
+          clockStopped,
+          frozenTotalDays: clockStopped ? daysBetween(startDate) : null,
+          cocFiled: false,
+          cocDate: '',
+          clientPhone: '',
+          clientEmail: '',
+          exWindows: [],
+          arraignment_date: arraignmentDate
+        };
+        cases.push(newCase);
+      }
+
+      saveCases(cases);
+
+      document.getElementById('editingId').value = '';
+      document.getElementById('case-form').reset();
+      document.getElementById('excludedDays').value = "0";
+      document.getElementById('definitelyExcludedDays').value = "0";
+      document.getElementById('arguablyExcludedDays').value = "0";
+      document.getElementById('arraignmentSameAsStart').checked = false;
+
+      renderCases();
+    });
+
+    // Keep arraignment = start date if box checked
+    document.getElementById('arraignmentSameAsStart').addEventListener('change', () => {
+      const cb = document.getElementById('arraignmentSameAsStart');
+      const start = document.getElementById('startDate').value;
+      if (cb.checked && start) {
+        document.getElementById('arraignmentDate').value = start;
+      }
+    });
+
+    document.getElementById('startDate').addEventListener('change', () => {
+      const cb = document.getElementById('arraignmentSameAsStart');
+      if (cb.checked) {
+        document.getElementById('arraignmentDate').value = document.getElementById('startDate').value;
+      }
+    });
+
+    document.getElementById('modalDefExcluded').addEventListener('input', syncModalExcludedFromDefArg);
+    document.getElementById('modalArgExcluded').addEventListener('input', syncModalExcludedFromDefArg);
+
+    document.getElementById('search').addEventListener('input', renderCases);
+    document.getElementById('sortMode').addEventListener('change', renderCases);
+    document.getElementById('excludeMode').addEventListener('change', renderCases);
+    document.getElementById('showWarrant').addEventListener('change', renderCases);
+    document.getElementById('showClosed').addEventListener('change', renderCases);
+    document.getElementById('showReadyOnly').addEventListener('change', renderCases);
+    document.getElementById('applyBusyFilter').addEventListener('change', renderCases);
+    document.getElementById('minCasesBusy').addEventListener('change', renderCases);
+    document.getElementById('minPartsBusy').addEventListener('change', renderCases);
+
+    document.getElementById('exportBtn').addEventListener('click', exportEncryptedBackup);
+    document.getElementById('importBtn').addEventListener('click', () => {
+      document.getElementById('importFile').click();
+    });
+    document.getElementById('importFile').addEventListener('change', handleImportFile);
+
+    document.getElementById('mergeImportBtn').addEventListener('click', () => {
+      document.getElementById('mergeFile').click();
+    });
+    document.getElementById('mergeFile').addEventListener('change', handleMergeFile);
+
+    document.getElementById('clearCasesBtn').addEventListener('click', clearAllCases);
+
+    document.getElementById('advancedMainToggle').addEventListener('click', openAdvExModal);
+    document.getElementById('advancedModalToggle').addEventListener('click', () => {
+      const box = document.getElementById('advancedModalContainer');
+      box.style.display = (box.style.display === 'none' || box.style.display === '') ? 'flex' : 'none';
+    });
+
+    document.getElementById('exCalcAddBtn').addEventListener('click', () => {
+      addExCalcRow();
+      recalcExCalcTotals();
+    });
+
+    document.getElementById('modalExAddBtn').addEventListener('click', () => {
+      addModalExRow();
+      recalcModalExTotals();
+    });
+
+    document.getElementById('caseModal').addEventListener('click', (e) => {
+      if (e.target.id === 'caseModal') {
+        closeCaseModal();
+      }
+    });
+
+    document.getElementById('advExModal').addEventListener('click', (e) => {
+      if (e.target.id === 'advExModal') {
+        closeAdvExModal();
+      }
+    });
+
+    // Quick calculator events
+    document.getElementById('quickExAddBtn').addEventListener('click', () => {
+      addQuickExRow();
+      recalcQuickExTotals();
+    });
+    document.getElementById('quickChargeLevel').addEventListener('change', updateQuickDeadline);
+    document.getElementById('quickStartDate').addEventListener('change', updateQuickDeadline);
+
+    // Initial setup
+    renderCases();
+    resetExCalc();
+    resetModalExCalc([]);
+    resetQuickExCalc();
+  </script>
+
+  <footer style="margin-top:2rem;font-size:0.8rem;color:#6b7280;text-align:center;line-height:1.4;">
+    <p>
+      Data entered here is stored only in your browser on this device and is never transmitted to a server.
+      Use the encrypted backup or single-case export features if you need to move or preserve data between devices.
+    </p>
+    <p>
+      This tool is provided for internal reference and organizational purposes only. Attorneys are solely
+      responsible for verifying and calculating all chargeable and excludable time under CPL § 30.30 or
+      other applicable rules. No guarantee of accuracy is provided.
+    </p>
+  </footer>
+</body>
+</html>
