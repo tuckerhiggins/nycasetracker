@@ -638,7 +638,13 @@
     const SUPABASE_URL = "https://pzktoyskgxwbvsauusjg.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6a3RveXNrZ3h3YnZzYXV1c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEyNTEsImV4cCI6MjA3ODE3NzI1MX0.paUrNO010jaGoVIzl9ejIAIQr64MsIsVLTXfEQSuzew";
 
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let supabaseClient = null;
+if (window.supabase && window.supabase.createClient) {
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} else {
+  console.error("Supabase JS SDK not available; cloud sync disabled.");
+}
+
   </script>
 
   <script>
@@ -1352,13 +1358,15 @@ function adjustForWeekendOrHoliday(baseDate) {
     // --- Cloud auth helpers ---
 
     async function getCurrentUser() {
-      const { data, error } = await supabaseClient.auth.getUser();
-      if (error) {
-        console.error("Error getting current user:", error);
-        return null;
-      }
-      return data.user || null;
-    }
+  if (!supabaseClient) return null;
+  const { data, error } = await supabaseClient.auth.getUser();
+  if (error) {
+    console.error("Error getting current user:", error);
+    return null;
+  }
+  return data.user || null;
+}
+
 
     async function refreshAuthStatus() {
       const loginForm = document.getElementById('cloudLoginForm');
