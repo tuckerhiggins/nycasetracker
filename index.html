@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- CSP: limit sources + allow inline scripts/styles needed by this file and CryptoJS CDN -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdnjs.cloudflare.com; script-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; block-all-mixed-content;">
   <title>Case Tracker</title>
   <style>
     body {
@@ -198,6 +200,9 @@
     .row-ready {
       background: #eff6ff;
     }
+    .row-todo-highlight {
+      box-shadow: inset 3px 0 0 #ef4444;
+    }
     .badge {
       display: inline-block;
       padding: 0.1rem 0.35rem;
@@ -212,6 +217,14 @@
     .badge-closed {
       background: #e5e7eb;
       color: #374151;
+    }
+    .badge-todo {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    .todo-completed {
+      color: #9ca3af;
+      text-decoration: line-through;
     }
 
     .modal-overlay {
@@ -262,9 +275,6 @@
     }
     .notes-list li {
       margin-bottom: 0.25rem;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
     }
     .note-date {
       font-weight: 600;
@@ -298,83 +308,76 @@
       white-space: nowrap;
     }
 
-    /* To-dos */
-    .todo-item {
+    /* Dashboard header */
+    .dashboard-header {
       display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.4rem;
-      font-size: 0.8rem;
-    }
-    .todo-item .todo-desc {
-      flex: 1 1 auto;
-    }
-    .todo-item .todo-meta {
-      font-size: 0.75rem;
-      color: #6b7280;
-      white-space: nowrap;
-    }
-    .todo-item.todo-done .todo-desc {
-      text-decoration: line-through;
-      color: #9ca3af;
-    }
-
-    /* Load summary */
-    .load-summary {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      gap: 0.75rem;
-      padding: 0.6rem 0.8rem;
-      border-radius: 10px;
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
+      flex-direction: column;
+      gap: 0.25rem;
       margin-bottom: 0.75rem;
     }
-    .load-block {
-      min-width: 180px;
+    .today-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      padding: 0.6rem 0.8rem;
+      border-radius: 10px;
+      background: #eff6ff;
+      border-left: 4px solid #93c5fd;
     }
-    .load-title {
+    .today-card.busy {
+      background: #fef2f2;
+      border-left-color: #ef4444;
+    }
+    .today-title {
       font-size: 0.8rem;
-      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.05em;
       color: #6b7280;
-      margin-bottom: 0.2rem;
     }
-    .load-text {
-      font-size: 0.85rem;
+    .today-metric {
+      font-size: 1rem;
+      font-weight: 650;
       color: #111827;
     }
+    .today-sub {
+      font-size: 0.78rem;
+      color: #4b5563;
+    }
+    .week-line {
+      margin-left: 0.25rem;
+    }
 
-    /* Busy thresholds container (hidden unless filter on) */
-    #busyThresholds {
+    /* View modes & advanced filters */
+    .view-modes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .view-mode {
+      padding: 0.25rem 0.7rem;
+      border-radius: 999px;
+      border: none;
+      font-size: 0.8rem;
+      background: #f3f4f6;
+      color: #374151;
+      cursor: pointer;
+    }
+    .view-mode.active {
+      background: #2563eb;
+      color: #ffffff;
+    }
+    .advanced-filters {
       display: none;
       flex-wrap: wrap;
       gap: 0.75rem;
+      margin-top: 0.4rem;
+      padding: 0.4rem 0.5rem;
+      background: #f9fafb;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
     }
-
-    /* To-do view toggle button */
-    .view-toggle {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-top: 0.25rem;
-    }
-    .pill-toggle {
-      border-radius: 999px;
-      padding: 0.25rem 0.7rem;
-      font-size: 0.75rem;
-      border: 1px solid #d1d5db;
-      background: #f3f4f6;
-      color: #111827;
-      cursor: pointer;
-    }
-    .pill-toggle.active {
-      background: #2563eb;
-      border-color: #2563eb;
-      color: #ffffff;
+    .advanced-filters .field-inline {
+      min-width: 180px;
     }
 
     @media (max-width: 700px) {
@@ -388,8 +391,8 @@
       .modal {
         max-width: 95vw;
       }
-      .load-summary {
-        flex-direction: column;
+      .dashboard-header {
+        gap: 0.35rem;
       }
     }
   </style>
@@ -397,6 +400,18 @@
 <body>
   <div class="app-container">
     <h1>Case Tracker</h1>
+
+    <!-- Dashboard header -->
+    <div class="dashboard-header">
+      <div id="todayCard" class="today-card">
+        <div class="today-title">Today</div>
+        <div id="todayNcdCount" class="today-metric">0 NCDs</div>
+        <div id="todayDetails" class="today-sub">No NCDs or to-dos due today.</div>
+      </div>
+      <div id="weekSummary" class="small-text week-line">
+        This week: no NCDs or to-dos scheduled.
+      </div>
+    </div>
 
     <!-- Local backups + Quick 30.30 calculator -->
     <div class="backup-bar">
@@ -461,18 +476,6 @@
       Data is stored only in this browser’s local storage on this device and is not synced to any server.
       Do <strong>not</strong> use this tool on shared or public computers. Use the encrypted backup options
       if you need to move or preserve your data.
-    </div>
-
-    <!-- Load summary -->
-    <div class="load-summary">
-      <div class="load-block">
-        <div class="load-title">Today's load</div>
-        <div id="loadTodayText" class="load-text">No cases today.</div>
-      </div>
-      <div class="load-block">
-        <div class="load-title">This week's load</div>
-        <div id="loadWeekText" class="load-text">No cases this week.</div>
-      </div>
     </div>
 
     <div class="top-bar">
@@ -552,14 +555,10 @@
       <div class="field search-input">
         <label for="search">Filter Cases</label>
         <input id="search" placeholder="Search by client, docket, ADA, notes, phone, email...">
-        <div class="view-toggle">
-          <button type="button" id="todosViewBtn" class="pill-toggle">
-            Show cases with to-dos
-          </button>
-        </div>
       </div>
     </div>
 
+    <!-- Filters -->
     <div class="filters-row">
       <div class="field-inline">
         <label for="sortMode">Sort by</label>
@@ -568,6 +567,39 @@
           <option value="ncd">NCD (soonest first)</option>
         </select>
       </div>
+
+      <div class="field-inline">
+        <label>View</label>
+        <div class="view-modes">
+          <button type="button" class="view-mode active" data-mode="all">All cases</button>
+          <button type="button" class="view-mode" data-mode="today">Today</button>
+          <button type="button" class="view-mode" data-mode="busy">Busy days</button>
+          <button type="button" class="view-mode" data-mode="todos">To-dos</button>
+        </div>
+      </div>
+
+      <div class="checkbox-group">
+        <label>
+          <input type="checkbox" id="showWarrant">
+          Include warrant cases
+        </label>
+        <label>
+          <input type="checkbox" id="showClosed">
+          Include closed cases
+        </label>
+        <label>
+          <input type="checkbox" id="showReadyOnly">
+          Ready cases only (COC filed)
+        </label>
+      </div>
+
+      <button type="button" class="secondary small-link" id="advancedFiltersToggle">
+        Advanced filters…
+      </button>
+    </div>
+
+    <!-- Advanced filter panel -->
+    <div id="advancedFilters" class="advanced-filters">
       <div class="field-inline">
         <label for="excludeMode">Excluded time mode</label>
         <select id="excludeMode">
@@ -576,35 +608,17 @@
         </select>
       </div>
 
-      <div id="busyThresholds">
-        <div class="field-inline">
-          <label for="minCasesBusy">Busy day: more than this many cases</label>
-          <input id="minCasesBusy" type="number" min="1" value="3">
-        </div>
-        <div class="field-inline">
-          <label for="minPartsBusy">…in more than this many parts</label>
-          <input id="minPartsBusy" type="number" min="1" value="2">
-        </div>
+      <div id="busyThresholds" class="field-inline">
+        <label for="minCasesBusy">Busy day: more than this many cases</label>
+        <input id="minCasesBusy" type="number" min="1" value="3">
+        <label for="minPartsBusy" style="margin-top:0.4rem;">…in more than this many parts</label>
+        <input id="minPartsBusy" type="number" min="1" value="2">
       </div>
+    </div>
 
-      <div class="checkbox-group">
-        <label>
-          <input type="checkbox" id="showWarrant">
-          Show warrant cases
-        </label>
-        <label>
-          <input type="checkbox" id="showClosed">
-          Show closed cases
-        </label>
-        <label>
-          <input type="checkbox" id="showReadyOnly">
-          Show ready cases only (COC filed)
-        </label>
-        <label>
-          <input type="checkbox" id="applyBusyFilter">
-          Show busy days only
-        </label>
-      </div>
+    <!-- Busy day summary (still useful as a line under filters) -->
+    <div id="busySummary" class="small-text" style="margin-top:0.25rem;margin-bottom:0.25rem;">
+      <!-- Filled in by JS -->
     </div>
 
     <table>
@@ -621,7 +635,6 @@
           <th>Deadline</th>
           <th>NCD</th>
           <th>Part</th>
-          <th>To-dos</th>
         </tr>
       </thead>
       <tbody id="casesBody">
@@ -659,7 +672,31 @@
         </div>
       </div>
 
-      <div class="form-row">
+      <!-- To-do creation + list -->
+      <div class="form-row" style="margin-bottom:0.5rem;">
+        <button type="button" class="secondary small-link" id="modalTodoCreateBtn">
+          Create to-do for this case
+        </button>
+      </div>
+      <div id="modalTodoCreateRow" style="display:none; margin-bottom:0.75rem;">
+        <div class="form-row">
+          <div class="field">
+            <label for="modalTodoDescription">To-do description</label>
+            <input id="modalTodoDescription" placeholder="e.g., Draft suppression motion">
+          </div>
+          <div class="field">
+            <label for="modalTodoDeadline">Deadline</label>
+            <input id="modalTodoDeadline" type="date">
+          </div>
+        </div>
+        <button type="button" class="primary small-link" onclick="addTodoToCurrentCase()">
+          Add to-do
+        </button>
+      </div>
+      <div class="modal-section-title">To-dos</div>
+      <ul id="modalTodoList" class="notes-list"></ul>
+
+      <div class="form-row" style="margin-top:0.75rem;">
         <div class="field">
           <label for="modalChargeLevel">Top Charge Level</label>
           <select id="modalChargeLevel">
@@ -783,34 +820,21 @@
         </div>
       </div>
 
-      <!-- To-dos section -->
-      <div class="modal-section-title" style="margin-top:1rem;">To-dos for this case</div>
-      <ul id="modalTodosList" class="notes-list"></ul>
-      <div class="form-row">
-        <div class="field">
-          <label for="modalTodoDescription">To-do description</label>
-          <input id="modalTodoDescription" placeholder="e.g., Call client; file motion; request discovery...">
+      <div>
+        <div class="modal-section-title">Notes</div>
+        <ul id="modalNotesList" class="notes-list"></ul>
+        <div class="form-row">
+          <div class="field">
+            <label for="modalNoteDate">Note Date</label>
+            <input id="modalNoteDate" type="date">
+          </div>
+          <div class="field">
+            <label for="modalNoteText">Note Text</label>
+            <textarea id="modalNoteText" rows="2" placeholder="e.g., People served discovery; defense asked for adjournment..."></textarea>
+          </div>
         </div>
-        <div class="field">
-          <label for="modalTodoDeadline">To-do deadline</label>
-          <input id="modalTodoDeadline" type="date">
-        </div>
+        <button class="secondary" onclick="addNoteToCurrentCase()">Add Note</button>
       </div>
-      <button class="secondary" type="button" onclick="addTodoToCurrentCase()">Add to-do</button>
-
-      <div class="modal-section-title" style="margin-top:1rem;">Notes</div>
-      <ul id="modalNotesList" class="notes-list"></ul>
-      <div class="form-row">
-        <div class="field">
-          <label for="modalNoteDate">Note Date</label>
-          <input id="modalNoteDate" type="date">
-        </div>
-        <div class="field">
-          <label for="modalNoteText">Note Text</label>
-          <textarea id="modalNoteText" rows="2" placeholder="e.g., People served discovery; defense asked for adjournment..."></textarea>
-        </div>
-      </div>
-      <button class="secondary" onclick="addNoteToCurrentCase()">Add Note</button>
 
       <div style="margin-top: 1rem; display:flex; justify-content: space-between; gap:0.5rem; flex-wrap:wrap;">
         <button class="secondary" type="button" onclick="exportCurrentCase()">Export this case</button>
@@ -865,24 +889,110 @@
     let exCalcRowCounter = 0;
     let modalExRowCounter = 0;
     let quickExRowCounter = 0;
-    let showTodosOnly = false;
+    let currentViewMode = 'all'; // 'all', 'today', 'busy', 'todos'
 
     // excludable windows for the new (unsaved) case from main form
     let pendingExWindows = [];
 
-    // --- XSS helper: belt-and-suspenders ---
+    // --- Sanitization + normalization helpers ---
 
-    function sanitizeUserInput(str) {
-      return String(str).replace(/[&<>"'\/]/g, s =>
-        ({
-          '&': '&amp;',
-          '<': '&lt;',
-          '>': '&gt;',
-          '"': '&quot;',
-          "'": '&#39;',
-          '/': '&#x2F;'
-        }[s] || s)
-      );
+    // Strip angle brackets + control chars from strings for imported/loaded data
+    function sanitizeString(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/[<>]/g, '')
+        .replace(/[\x00-\x1F\x7F]/g, '');
+    }
+
+    function normalizeCaseObject(raw) {
+      if (!raw || typeof raw !== 'object') return null;
+
+      const id = raw.id ? String(raw.id) : ('case-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+      const clientName = sanitizeString(raw.clientName || '');
+      const docketNumber = sanitizeString(raw.docketNumber || '');
+      const chargeLevel = ['felony', 'classA', 'classB', 'violation'].includes(raw.chargeLevel) ? raw.chargeLevel : '';
+      const startDate = raw.startDate || '';
+      const excludedDays = String(Number(raw.excludedDays || 0) || 0);
+      const definitelyExcludedDays = String(Number(raw.definitelyExcludedDays || 0) || 0);
+      const arguablyExcludedDays = String(Number(raw.arguablyExcludedDays || 0) || 0);
+
+      const notes = sanitizeString(raw.notes || '');
+      const nextCourtDate = raw.nextCourtDate || '';
+      const courtPart = sanitizeString(raw.courtPart || '');
+      const assignedAda = sanitizeString(raw.assignedAda || '');
+      const warrant = !!raw.warrant;
+      const closed = !!raw.closed;
+      const clockStopped = !!raw.clockStopped;
+      const frozenTotalDays =
+        (typeof raw.frozenTotalDays === 'number' || typeof raw.frozenTotalDays === 'string')
+          ? (isNaN(Number(raw.frozenTotalDays)) ? null : Number(raw.frozenTotalDays))
+          : null;
+      const cocFiled = !!raw.cocFiled;
+      const cocDate = raw.cocDate || '';
+      const clientPhone = sanitizeString(raw.clientPhone || '');
+      const clientEmail = sanitizeString(raw.clientEmail || '');
+      const arraignment_date = raw.arraignment_date || '';
+
+      const noteEntries = Array.isArray(raw.noteEntries)
+        ? raw.noteEntries.map(n => ({
+            date: sanitizeString(n && n.date || ''),
+            text: sanitizeString(n && n.text || '')
+          }))
+        : [];
+
+      const exWindows = Array.isArray(raw.exWindows)
+        ? raw.exWindows.map(w => ({
+            start: w && w.start ? String(w.start) : '',
+            end: w && w.end ? String(w.end) : '',
+            reason: sanitizeString(w && w.reason || ''),
+            arguable: !!(w && w.arguable)
+          }))
+        : [];
+
+      const todos = Array.isArray(raw.todos)
+        ? raw.todos.map(t => ({
+            description: sanitizeString(t && t.description || ''),
+            deadline: t && t.deadline ? String(t.deadline) : '',
+            completed: !!(t && (t.completed || t.done))
+          }))
+        : [];
+
+      return {
+        id,
+        clientName,
+        docketNumber,
+        chargeLevel,
+        startDate,
+        excludedDays,
+        definitelyExcludedDays,
+        arguablyExcludedDays,
+        notes,
+        nextCourtDate,
+        courtPart,
+        assignedAda,
+        noteEntries,
+        warrant,
+        closed,
+        clockStopped,
+        frozenTotalDays,
+        cocFiled,
+        cocDate,
+        clientPhone,
+        clientEmail,
+        arraignment_date,
+        exWindows,
+        todos
+      };
+    }
+
+    function validateAndNormalizeImportedCases(parsed) {
+      if (Array.isArray(parsed)) {
+        return parsed.map(normalizeCaseObject).filter(Boolean);
+      } else if (parsed && typeof parsed === 'object') {
+        const normalized = normalizeCaseObject(parsed);
+        return normalized ? [normalized] : [];
+      }
+      throw new Error('Unsupported backup format');
     }
 
     // --- Date helpers ---
@@ -906,6 +1016,11 @@
       const d = String(date.getDate()).padStart(2, '0');
       const dow = days[date.getDay()];
       return `${dow}, ${m}/${d}/${y}`;
+    }
+
+    function formatShortWeekday(date) {
+      const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      return days[date.getDay()];
     }
 
     function daysBetween(startDateStr) {
@@ -1123,47 +1238,8 @@
       const raw = localStorage.getItem('ny3030Cases');
       if (!raw) return [];
       try {
-        const arr = JSON.parse(raw);
-        return arr.map(c => ({
-          id: c.id,
-          clientName: c.clientName || '',
-          docketNumber: c.docketNumber || '',
-          chargeLevel: c.chargeLevel || '',
-          startDate: c.startDate || '',
-          excludedDays: c.excludedDays || "0",
-          definitelyExcludedDays: c.definitelyExcludedDays || "0",
-          arguablyExcludedDays: c.arguablyExcludedDays || "0",
-          notes: c.notes || '',
-          nextCourtDate: c.nextCourtDate || '',
-          courtPart: c.courtPart || '',
-          assignedAda: c.assignedAda || '',
-          noteEntries: Array.isArray(c.noteEntries) ? c.noteEntries : [],
-          warrant: !!c.warrant,
-          closed: !!c.closed,
-          clockStopped: !!c.clockStopped,
-          frozenTotalDays: typeof c.frozenTotalDays === 'number' ? c.frozenTotalDays : null,
-          cocFiled: !!c.cocFiled,
-          cocDate: c.cocDate || '',
-          clientPhone: c.clientPhone || '',
-          clientEmail: c.clientEmail || '',
-          arraignment_date: c.arraignment_date || '',
-          exWindows: Array.isArray(c.exWindows)
-            ? c.exWindows.map(w => ({
-                start: w.start || '',
-                end: w.end || '',
-                reason: w.reason || '',
-                arguable: !!w.arguable
-              }))
-            : [],
-          todos: Array.isArray(c.todos)
-            ? c.todos.map(t => ({
-                id: t.id,
-                description: t.description || '',
-                deadline: t.deadline || '',
-                done: !!t.done
-              }))
-            : []
-        }));
+        const parsed = JSON.parse(raw);
+        return validateAndNormalizeImportedCases(parsed);
       } catch {
         return [];
       }
@@ -1175,15 +1251,31 @@
 
     // --- UI helpers ---
 
-    function chargeTag(level) {
-      // Static markup only; no user data here
+    // Create a charge tag element instead of writing HTML
+    function chargeTagElement(level) {
+      const span = document.createElement('span');
+      span.className = 'tag';
       switch (level) {
-        case 'felony': return '<span class="tag tag-felony">Felony</span>';
-        case 'classA': return '<span class="tag tag-a">Class A Misd</span>';
-        case 'classB': return '<span class="tag tag-b">Class B Misd</span>';
-        case 'violation': return '<span class="tag tag-v">Violation</span>';
-        default: return '';
+        case 'felony':
+          span.classList.add('tag-felony');
+          span.textContent = 'Felony';
+          break;
+        case 'classA':
+          span.classList.add('tag-a');
+          span.textContent = 'Class A Misd';
+          break;
+        case 'classB':
+          span.classList.add('tag-b');
+          span.textContent = 'Class B Misd';
+          break;
+        case 'violation':
+          span.classList.add('tag-v');
+          span.textContent = 'Violation';
+          break;
+        default:
+          span.textContent = '';
       }
+      return span;
     }
 
     function compareByClient(a, b) {
@@ -1207,115 +1299,254 @@
       return sa - sb;
     }
 
-    function earliestOpenTodoDate(caseObj) {
-      if (!caseObj.todos || !caseObj.todos.length) return null;
-      const open = caseObj.todos.filter(t => !t.done && t.deadline);
-      if (!open.length) return null;
-      open.sort((a, b) => a.deadline.localeCompare(b.deadline));
-      return open[0].deadline;
+    function getSoonestOutstandingTodoDeadline(c) {
+      if (!c.todos || !Array.isArray(c.todos)) return null;
+      let best = null;
+      c.todos.forEach(t => {
+        if (t && !t.completed && t.deadline) {
+          try {
+            const d = parseLocalDate(t.deadline);
+            if (!best || d < best) best = d;
+          } catch {}
+        }
+      });
+      return best;
     }
 
-    // --- Load summary ---
+    function compareByTodoDeadlineThenClient(a, b) {
+      const da = getSoonestOutstandingTodoDeadline(a);
+      const db = getSoonestOutstandingTodoDeadline(b);
+      if (!da && !db) return compareByClient(a, b);
+      if (!da) return 1;
+      if (!db) return -1;
+      if (da < db) return -1;
+      if (da > db) return 1;
+      return compareByClient(a, b);
+    }
 
-    function updateLoadSummary(baseCases) {
-      const todayTextEl = document.getElementById('loadTodayText');
-      const weekTextEl = document.getElementById('loadWeekText');
-      if (!todayTextEl || !weekTextEl) return;
+    // --- Busy day + dashboard summaries ---
 
+    function updateBusySummary(casesForSummary) {
+      const el = document.getElementById('busySummary');
+      if (!el) return;
+
+      if (!casesForSummary || casesForSummary.length === 0) {
+        el.textContent = 'No cases stored yet.';
+        return;
+      }
+
+      const minCasesInput = document.getElementById('minCasesBusy');
+      const minPartsInput = document.getElementById('minPartsBusy');
+      const minCases = Math.max(1, parseInt(minCasesInput?.value, 10) || 3);
+      const minParts = Math.max(1, parseInt(minPartsInput?.value, 10) || 2);
+
+      const stats = {};
       const today = new Date();
       today.setHours(0,0,0,0);
-      const weekAhead = addDays(today, 6);
 
-      const statsByDate = {};
-
-      baseCases.forEach(c => {
+      casesForSummary.forEach(c => {
         if (!c.nextCourtDate) return;
         const d = parseLocalDate(c.nextCourtDate);
         d.setHours(0,0,0,0);
-        const key = formatDate(d);
-        if (!statsByDate[key]) {
-          statsByDate[key] = { count: 0, parts: new Set() };
-        }
-        statsByDate[key].count++;
-        if (c.courtPart) statsByDate[key].parts.add(c.courtPart);
+        if (d < today) return; // only upcoming
+        const key = c.nextCourtDate;
+        if (!stats[key]) stats[key] = { count: 0, parts: new Set() };
+        stats[key].count++;
+        if (c.courtPart) stats[key].parts.add(c.courtPart);
       });
 
-      // Today's load
-      const todayKey = formatDate(today);
-      const todayStats = statsByDate[todayKey];
-      if (todayStats) {
-        const caseCount = todayStats.count;
-        const partCount = todayStats.parts.size;
-        todayTextEl.textContent = `${caseCount} case${caseCount === 1 ? '' : 's'} in ${partCount || 0} part${partCount === 1 ? '' : 's'}`;
-      } else {
-        todayTextEl.textContent = 'No cases today.';
+      const entries = Object.keys(stats).map(dateStr => {
+        const info = stats[dateStr];
+        const isBusy = (info.count > minCases) || (info.parts.size > minParts);
+        return { dateStr, count: info.count, parts: info.parts, isBusy };
+      }).filter(e => e.isBusy);
+
+      if (entries.length === 0) {
+        el.textContent = `No upcoming busy days (defined as more than ${minCases} cases or more than ${minParts} parts on the same day).`;
+        return;
       }
 
-      // This week
-      let totalCases = 0;
-      const allParts = new Set();
-      let busiestDay = null; // {dateKey, count}
-      Object.keys(statsByDate).forEach(key => {
-        const d = parseLocalDate(key);
-        d.setHours(0,0,0,0);
-        if (d < today || d > weekAhead) return;
-        const s = statsByDate[key];
-        totalCases += s.count;
-        s.parts.forEach(p => allParts.add(p));
-        if (!busiestDay || s.count > busiestDay.count) {
-          busiestDay = { dateKey: key, count: s.count };
+      entries.sort((a, b) => parseLocalDate(a.dateStr) - parseLocalDate(b.dateStr));
+
+      const maxShown = 5;
+      const snippets = entries.slice(0, maxShown).map(e => {
+        const d = parseLocalDate(e.dateStr);
+        const label = formatDateWithWeekday(d);
+        const partsCount = e.parts.size;
+        return `${label}: ${e.count} case${e.count === 1 ? '' : 's'} in ${partsCount || 0} part${partsCount === 1 ? '' : 's'}`;
+      });
+
+      let tail = '';
+      if (entries.length > maxShown) {
+        const remaining = entries.length - maxShown;
+        tail = `, plus ${remaining} more busy day${remaining === 1 ? '' : 's'}`;
+      }
+
+      el.textContent = 'Upcoming busy days: ' + snippets.join('; ') + tail +
+        `. (Busy = >${minCases} cases or >${minParts} parts.)`;
+    }
+
+    function updateDashboardHeader(casesForSummary) {
+      const todayCard = document.getElementById('todayCard');
+      const todayNcdLabel = document.getElementById('todayNcdCount');
+      const todayDetails = document.getElementById('todayDetails');
+      const weekSummary = document.getElementById('weekSummary');
+      if (!todayCard || !todayNcdLabel || !todayDetails || !weekSummary) return;
+
+      const minCases = Math.max(1, parseInt(document.getElementById('minCasesBusy')?.value, 10) || 3);
+      const minParts = Math.max(1, parseInt(document.getElementById('minPartsBusy')?.value, 10) || 2);
+
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      // --- Today metrics ---
+      const todayCases = [];
+      const todayPartsSet = new Set();
+      let todayTodosDue = 0;
+
+      (casesForSummary || []).forEach(c => {
+        if (c.nextCourtDate) {
+          const d = parseLocalDate(c.nextCourtDate);
+          d.setHours(0,0,0,0);
+          if (isSameDay(d, today)) {
+            todayCases.push(c);
+            if (c.courtPart) todayPartsSet.add(c.courtPart);
+          }
+        }
+
+        if (Array.isArray(c.todos)) {
+          c.todos.forEach(t => {
+            if (!t || t.completed || !t.deadline) return;
+            try {
+              const td = parseLocalDate(t.deadline);
+              td.setHours(0,0,0,0);
+              if (isSameDay(td, today)) {
+                todayTodosDue++;
+              }
+            } catch {}
+          });
         }
       });
 
-      if (!busiestDay) {
-        weekTextEl.textContent = 'No cases in the next 7 days.';
+      const todayNcdCount = todayCases.length;
+      const todayPartsCount = todayPartsSet.size;
+      const todayIsBusy = (todayNcdCount > minCases) || (todayPartsCount > minParts);
+
+      todayCard.classList.toggle('busy', todayIsBusy);
+      todayNcdLabel.textContent = `${todayNcdCount} NCD${todayNcdCount === 1 ? '' : 's'}`;
+
+      if (todayNcdCount === 0 && todayTodosDue === 0) {
+        todayDetails.textContent = 'No NCDs or to-dos due today.';
       } else {
-        const busiestDate = parseLocalDate(busiestDay.dateKey);
-        const partsCount = allParts.size;
-        const daysWithCourt = Object.keys(statsByDate).filter(key => {
-          const d = parseLocalDate(key);
-          d.setHours(0,0,0,0);
-          return d >= today && d <= weekAhead;
-        }).length;
-        weekTextEl.textContent =
-          `${totalCases} case${totalCases === 1 ? '' : 's'} across ${partsCount || 0} part${partsCount === 1 ? '' : 's'} on ${daysWithCourt} day${daysWithCourt === 1 ? '' : 's'} (busiest: ${busiestDate.toLocaleDateString(undefined, { weekday:'short', month:'numeric', day:'numeric' })} with ${busiestDay.count})`;
+        const partsText = `${todayPartsCount} part${todayPartsCount === 1 ? '' : 's'}`;
+        const todosText = `${todayTodosDue} to-do${todayTodosDue === 1 ? '' : 's'} due`;
+        const busyText = todayIsBusy ? ' • Busy day' : '';
+        todayDetails.textContent = `${partsText} • ${todosText}${busyText}`;
+      }
+
+      // --- This week metrics (next 7 days including today) ---
+      const weekStart = new Date(today.getTime());
+      const weekEnd = addDays(today, 6); // inclusive 7-day window
+      weekEnd.setHours(23,59,59,999);
+
+      let weekNcdCount = 0;
+      const weekPartsSet = new Set();
+      let weekTodosDue = 0;
+      const dayStats = {}; // dateStr -> { count, parts }
+
+      (casesForSummary || []).forEach(c => {
+        if (c.nextCourtDate) {
+          try {
+            const d = parseLocalDate(c.nextCourtDate);
+            d.setHours(0,0,0,0);
+            if (d >= weekStart && d <= weekEnd) {
+              const key = formatDate(d);
+              weekNcdCount++;
+              if (c.courtPart) {
+                weekPartsSet.add(c.courtPart);
+              }
+              if (!dayStats[key]) {
+                dayStats[key] = { count: 0, parts: new Set() };
+              }
+              dayStats[key].count++;
+              if (c.courtPart) dayStats[key].parts.add(c.courtPart);
+            }
+          } catch {}
+        }
+
+        if (Array.isArray(c.todos)) {
+          c.todos.forEach(t => {
+            if (!t || t.completed || !t.deadline) return;
+            try {
+              const td = parseLocalDate(t.deadline);
+              td.setHours(0,0,0,0);
+              if (td >= weekStart && td <= weekEnd) {
+                weekTodosDue++;
+              }
+            } catch {}
+          });
+        }
+      });
+
+      let busiestSnippet = '';
+      const keys = Object.keys(dayStats);
+      if (keys.length > 0) {
+        keys.sort((a, b) => parseLocalDate(a) - parseLocalDate(b));
+        let bestKey = keys[0];
+        keys.forEach(k => {
+          if (dayStats[k].count > dayStats[bestKey].count) {
+            bestKey = k;
+          }
+        });
+        const d = parseLocalDate(bestKey);
+        const short = formatShortWeekday(d);
+        const info = dayStats[bestKey];
+        const partsCount = info.parts.size;
+        busiestSnippet = ` • Busiest: ${short} (${info.count} case${info.count === 1 ? '' : 's'} in ${partsCount} part${partsCount === 1 ? '' : 's'})`;
+      }
+
+      if (weekNcdCount === 0 && weekTodosDue === 0) {
+        weekSummary.textContent = 'This week: no NCDs or to-dos scheduled.';
+      } else {
+        const partsCount = weekPartsSet.size;
+        weekSummary.textContent =
+          `This week: ${weekNcdCount} NCD${weekNcdCount === 1 ? '' : 's'} • ` +
+          `${partsCount} part${partsCount === 1 ? '' : 's'} • ` +
+          `${weekTodosDue} case${weekTodosDue === 1 ? '' : 's'} with to-dos due` +
+          busiestSnippet;
       }
     }
 
-    // --- Rendering main table (XSS-safe) ---
+    // --- Rendering main table (safe DOM construction, no user HTML injection) ---
 
     function renderCases() {
       const tbody = document.getElementById('casesBody');
-      let cases = loadCases();
+      const allCases = loadCases();
       const filter = document.getElementById('search').value.toLowerCase();
       const sortMode = document.getElementById('sortMode').value;
       const showWarrant = document.getElementById('showWarrant').checked;
       const showClosed = document.getElementById('showClosed').checked;
       const showReadyOnly = document.getElementById('showReadyOnly').checked;
       const excludeMode = document.getElementById('excludeMode').value;
-      const applyBusy = document.getElementById('applyBusyFilter').checked;
-      const minCasesBusy = Math.max(1, parseInt(document.getElementById('minCasesBusy').value) || 1);
-      const minPartsBusy = Math.max(1, parseInt(document.getElementById('minPartsBusy').value) || 1);
+      const minCasesBusy = Math.max(1, parseInt(document.getElementById('minCasesBusy').value) || 3);
+      const minPartsBusy = Math.max(1, parseInt(document.getElementById('minPartsBusy').value) || 2);
+
+      let cases = allCases;
 
       // Base filters: ready / warrant / closed
-      let baseCases = cases.filter(c => {
+      cases = cases.filter(c => {
         if (showReadyOnly && !c.cocFiled) return false;
         if (c.closed && !showClosed) return false;
         if (c.warrant && !showWarrant) return false;
         return true;
       });
 
-      // Update load summary based on base (un-searched, un-view-filtered) cases
-      updateLoadSummary(baseCases);
-
-      cases = baseCases;
-
       // Text search
       if (filter) {
         cases = cases.filter(c => {
           const combinedText = (
-            c.clientName + ' ' +
-            c.docketNumber + ' ' +
+            (c.clientName || '') + ' ' +
+            (c.docketNumber || '') + ' ' +
             (c.notes || '') + ' ' +
             (c.assignedAda || '') + ' ' +
             (c.clientPhone || '') + ' ' +
@@ -1325,15 +1556,27 @@
         });
       }
 
-      // To-do view filter
-      if (showTodosOnly) {
-        cases = cases.filter(c => {
-          return Array.isArray(c.todos) && c.todos.some(t => !t.done);
-        });
-      }
+      // Update dashboard + busy-day summary based on this filtered set
+      const casesForSummary = cases.slice();
+      updateBusySummary(casesForSummary);
+      updateDashboardHeader(casesForSummary);
 
-      // Busy-day filter
-      if (applyBusy) {
+      // View mode: today / busy / todos
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      if (currentViewMode === 'today') {
+        cases = cases.filter(c => {
+          if (!c.nextCourtDate) return false;
+          try {
+            const d = parseLocalDate(c.nextCourtDate);
+            d.setHours(0,0,0,0);
+            return isSameDay(d, today);
+          } catch {
+            return false;
+          }
+        });
+      } else if (currentViewMode === 'busy') {
         const stats = {};
         cases.forEach(c => {
           if (!c.nextCourtDate) return;
@@ -1348,21 +1591,18 @@
           const s = stats[c.nextCourtDate];
           if (!s) return false;
           const partsCount = s.parts.size;
-          return (s.count > minCasesBusy) && (partsCount > minPartsBusy);
+          // Busy = more than minCases OR more than minParts
+          return (s.count > minCasesBusy) || (partsCount > minPartsBusy);
         });
+      } else if (currentViewMode === 'todos') {
+        cases = cases.filter(c =>
+          Array.isArray(c.todos) && c.todos.some(t => t && !t.completed)
+        );
       }
 
       // Sorting
-      if (showTodosOnly) {
-        // When in to-do view, sort by earliest outstanding to-do deadline
-        cases.sort((a, b) => {
-          const da = earliestOpenTodoDate(a);
-          const db = earliestOpenTodoDate(b);
-          if (!da && !db) return compareByClient(a, b);
-          if (!da) return 1;
-          if (!db) return -1;
-          return da.localeCompare(db);
-        });
+      if (currentViewMode === 'todos') {
+        cases.sort(compareByTodoDeadlineThenClient);
       } else if (sortMode === 'ncd') {
         cases.sort(compareByNcd);
       } else {
@@ -1372,7 +1612,6 @@
       tbody.innerHTML = '';
 
       cases.forEach(c => {
-        // Total days
         let totalDays;
         if (c.cocFiled && c.cocDate && c.startDate) {
           const s = parseLocalDate(c.startDate);
@@ -1412,7 +1651,7 @@
           if (remaining > 0) {
             remainingText = `(${remaining} days remaining)`;
           } else if (remaining === 0) {
-            remainingText = '(deadline today)';
+            remainingText = `(deadline today)`;
           } else {
             remainingText = `${Math.abs(remaining)} days past deadline`;
           }
@@ -1423,128 +1662,141 @@
         if (c.closed) tr.classList.add('row-closed');
         if (c.cocFiled) tr.classList.add('row-ready');
 
-        // --- Client cell (text + badges) ---
+        const todos = Array.isArray(c.todos) ? c.todos : [];
+        const outstandingTodos = todos.filter(t => t && !t.completed);
+        let nextTodo = null;
+        let nextDeadlineDate = null;
+
+        if (outstandingTodos.length > 0) {
+          outstandingTodos.forEach(t => {
+            if (t.deadline) {
+              try {
+                const d = parseLocalDate(t.deadline);
+                if (!nextDeadlineDate || d < nextDeadlineDate) {
+                  nextDeadlineDate = d;
+                  nextTodo = t;
+                }
+              } catch {
+                if (!nextTodo) nextTodo = t;
+              }
+            } else if (!nextTodo && !nextDeadlineDate) {
+              nextTodo = t;
+            }
+          });
+          tr.classList.add('row-todo-highlight');
+        }
+
+        // Client cell
         const tdClient = document.createElement('td');
-        const clientSpan = document.createElement('span');
-        clientSpan.textContent = c.clientName || '';
-        tdClient.appendChild(clientSpan);
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = c.clientName || '';
+        tdClient.appendChild(nameSpan);
 
         if (c.warrant) {
-          const badge = document.createElement('span');
-          badge.className = 'badge badge-warrant';
-          badge.textContent = 'Warrant';
+          const b = document.createElement('span');
+          b.className = 'badge badge-warrant';
+          b.textContent = 'Warrant';
           tdClient.appendChild(document.createTextNode(' '));
-          tdClient.appendChild(badge);
+          tdClient.appendChild(b);
         }
         if (c.closed) {
-          const badge = document.createElement('span');
-          badge.className = 'badge badge-closed';
-          badge.textContent = 'Closed';
+          const b = document.createElement('span');
+          b.className = 'badge badge-closed';
+          b.textContent = 'Closed';
           tdClient.appendChild(document.createTextNode(' '));
-          tdClient.appendChild(badge);
+          tdClient.appendChild(b);
         }
         if (c.clockStopped) {
-          const badge = document.createElement('span');
-          badge.className = 'badge';
-          badge.style.background = '#e0f2fe';
-          badge.style.color = '#1d4ed8';
-          badge.textContent = 'Clock stopped';
+          const b = document.createElement('span');
+          b.className = 'badge';
+          b.style.background = '#e0f2fe';
+          b.style.color = '#1d4ed8';
+          b.textContent = 'Clock stopped';
           tdClient.appendChild(document.createTextNode(' '));
-          tdClient.appendChild(badge);
+          tdClient.appendChild(b);
         }
         if (c.cocFiled) {
-          const badge = document.createElement('span');
-          badge.className = 'badge';
-          badge.style.background = '#dbeafe';
-          badge.style.color = '#1d4ed8';
-          badge.textContent = 'READY (COC filed)';
+          const b = document.createElement('span');
+          b.className = 'badge';
+          b.style.background = '#dbeafe';
+          b.style.color = '#1d4ed8';
+          b.textContent = 'READY (COC filed)';
           tdClient.appendChild(document.createTextNode(' '));
-          tdClient.appendChild(badge);
+          tdClient.appendChild(b);
+        }
+        if (outstandingTodos.length > 0) {
+          const b = document.createElement('span');
+          b.className = 'badge badge-todo';
+          b.textContent = 'To-do!';
+          tdClient.appendChild(document.createTextNode(' '));
+          tdClient.appendChild(b);
         }
 
-        // To-do badge
-        const openTodos = Array.isArray(c.todos)
-          ? c.todos.filter(t => !t.done)
-          : [];
-        if (openTodos.length > 0) {
-          const todoBadge = document.createElement('span');
-          todoBadge.className = 'badge';
-          todoBadge.style.background = '#fee2e2';
-          todoBadge.style.color = '#b91c1c';
-          todoBadge.textContent = `! ${openTodos.length} to-do${openTodos.length === 1 ? '' : 's'}`;
-          todoBadge.title = 'This case has outstanding to-dos.';
-          tdClient.appendChild(document.createTextNode(' '));
-          tdClient.appendChild(todoBadge);
+        if (nextTodo) {
+          let label;
+          if (nextDeadlineDate) {
+            label = formatDateWithWeekday(nextDeadlineDate);
+          } else if (nextTodo.deadline) {
+            label = nextTodo.deadline;
+          } else {
+            label = 'No deadline set';
+          }
+          const desc = nextTodo.description || '';
+          const todoDiv = document.createElement('div');
+          todoDiv.className = 'small-text';
+          todoDiv.textContent = 'Next to-do: ' + label + (desc ? ' – ' + desc : '');
+          tdClient.appendChild(todoDiv);
         }
 
-        // --- Docket cell ---
+        // Docket
         const tdDocket = document.createElement('td');
         tdDocket.textContent = c.docketNumber || '';
 
-        // --- Charge tag cell ---
+        // Charge tag
         const tdCharge = document.createElement('td');
-        tdCharge.innerHTML = chargeTag(c.chargeLevel); // static HTML per enum only
+        const tagEl = chargeTagElement(c.chargeLevel);
+        if (tagEl) tdCharge.appendChild(tagEl);
 
-        // --- Start date ---
+        // Start
         const tdStart = document.createElement('td');
         tdStart.textContent = c.startDate || '';
 
-        // --- Total days ---
+        // Total days
         const tdTotal = document.createElement('td');
         tdTotal.textContent = String(totalDays);
 
-        // --- Excluded (with tooltip) ---
+        // Excluded
         const tdExcluded = document.createElement('td');
         tdExcluded.textContent = String(excluded);
         tdExcluded.title = excludedDetail;
 
-        // --- Chargeable ---
+        // Chargeable
         const tdChargeable = document.createElement('td');
         tdChargeable.textContent = String(chargeable);
 
-        // --- Cap (days) ---
+        // Cap
         const tdCap = document.createElement('td');
         tdCap.textContent = capDays ? String(capDays) : '';
 
-        // --- Deadline ---
+        // Deadline
         const tdDeadline = document.createElement('td');
         tdDeadline.textContent = deadlineStr || '';
         tdDeadline.title = tooltip || '';
 
-        // --- NCD + remaining text ---
+        // NCD
         const tdNcd = document.createElement('td');
         if (ncdCls) tdNcd.classList.add(ncdCls);
-        if (c.nextCourtDate) {
-          const mainSpan = document.createElement('span');
-          mainSpan.textContent = c.nextCourtDate;
-          tdNcd.appendChild(mainSpan);
-        }
+        tdNcd.textContent = c.nextCourtDate || '';
         if (remainingText) {
-          const infoDiv = document.createElement('div');
-          infoDiv.className = 'small-text';
-          infoDiv.textContent = remainingText;
-          tdNcd.appendChild(infoDiv);
+          const remDiv = document.createElement('div');
+          remDiv.className = 'small-text';
+          remDiv.textContent = remainingText;
+          tdNcd.appendChild(remDiv);
         }
 
-        // --- Part ---
+        // Part
         const tdPart = document.createElement('td');
         tdPart.textContent = c.courtPart || '';
-
-        // --- To-dos column: show nearest deadline / summary ---
-        const tdTodos = document.createElement('td');
-        if (openTodos.length === 0) {
-          tdTodos.textContent = '—';
-        } else {
-          const nextDeadline = earliestOpenTodoDate(c);
-          const mainSpan = document.createElement('span');
-          mainSpan.textContent = nextDeadline || '';
-          tdTodos.appendChild(mainSpan);
-
-          const infoDiv = document.createElement('div');
-          infoDiv.className = 'small-text';
-          infoDiv.textContent = `${openTodos.length} outstanding`;
-          tdTodos.appendChild(infoDiv);
-        }
 
         tr.appendChild(tdClient);
         tr.appendChild(tdDocket);
@@ -1557,7 +1809,6 @@
         tr.appendChild(tdDeadline);
         tr.appendChild(tdNcd);
         tr.appendChild(tdPart);
-        tr.appendChild(tdTodos);
 
         tr.addEventListener('click', () => {
           openCaseModal(c.id);
@@ -1594,20 +1845,24 @@
       document.getElementById('modalClosed').checked = !!c.closed;
       document.getElementById('modalCocFiled').checked = !!c.cocFiled;
       document.getElementById('modalCocDate').value = c.cocDate || '';
-      document.getElementById('modalIncludeArg').checked = true;
+      document.getElementById('modalIncludeArg').checked = true; // default
 
       document.getElementById('modalNoteDate').value = '';
       document.getElementById('modalNoteText').value = '';
-      document.getElementById('modalTodoDescription').value = '';
-      document.getElementById('modalTodoDeadline').value = '';
+
+      // Reset to-do creation UI
+      const todoCreateRow = document.getElementById('modalTodoCreateRow');
+      if (todoCreateRow) todoCreateRow.style.display = 'none';
+      const todoDescInput = document.getElementById('modalTodoDescription');
+      const todoDeadlineInput = document.getElementById('modalTodoDeadline');
+      if (todoDescInput) todoDescInput.value = '';
+      if (todoDeadlineInput) todoDeadlineInput.value = '';
 
       renderModalNotes(c.noteEntries || []);
-      renderModalTodos(c);
+      renderModalTodos(c.todos || []);
 
       const advModal = document.getElementById('advancedModalContainer');
-      if ((Number(c.definitelyExcludedDays) || 0) > 0 ||
-          (Number(c.arguablyExcludedDays) || 0) > 0 ||
-          (c.exWindows && c.exWindows.length > 0)) {
+      if ((Number(c.definitelyExcludedDays) || 0) > 0 || (Number(c.arguablyExcludedDays) || 0) > 0 || (c.exWindows && c.exWindows.length > 0)) {
         advModal.style.display = 'flex';
       } else {
         advModal.style.display = 'none';
@@ -1626,38 +1881,31 @@
     function renderModalNotes(notes) {
       const list = document.getElementById('modalNotesList');
       list.innerHTML = '';
-
       if (!notes || notes.length === 0) {
         const li = document.createElement('li');
         li.textContent = 'No notes yet.';
         list.appendChild(li);
         return;
       }
-
-      notes.forEach((n, index) => {
+      notes.forEach((n, idx) => {
         const li = document.createElement('li');
-
         const dateSpan = document.createElement('span');
         dateSpan.className = 'note-date';
         dateSpan.textContent = n.date || '';
-
         li.appendChild(dateSpan);
+        li.appendChild(document.createTextNode(': ' + (n.text || '')));
 
-        if (n.text) {
-          li.appendChild(document.createTextNode(': ' + n.text));
-        }
-
-        // delete button
-        const delBtn = document.createElement('button');
-        delBtn.type = 'button';
-        delBtn.className = 'secondary small-link';
-        delBtn.textContent = 'Delete';
-        delBtn.addEventListener('click', (e) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'danger small-link';
+        btn.style.marginLeft = '0.5rem';
+        btn.textContent = 'Delete';
+        btn.addEventListener('click', (e) => {
           e.stopPropagation();
-          deleteNoteFromCurrentCase(index);
+          deleteNoteFromCurrentCase(idx);
         });
 
-        li.appendChild(delBtn);
+        li.appendChild(btn);
         list.appendChild(li);
       });
     }
@@ -1667,13 +1915,18 @@
       const cases = loadCases();
       const idx = cases.findIndex(c => c.id === currentModalCaseId);
       if (idx === -1) return;
+
       const caseObj = cases[idx];
-      if (!Array.isArray(caseObj.noteEntries)) return;
+      if (!Array.isArray(caseObj.noteEntries)) {
+        caseObj.noteEntries = [];
+      }
+      if (noteIndex < 0 || noteIndex >= caseObj.noteEntries.length) return;
+
+      if (!confirm('Delete this note?')) return;
 
       caseObj.noteEntries.splice(noteIndex, 1);
       saveCases(cases);
       renderModalNotes(caseObj.noteEntries);
-      renderCases();
     }
 
     function addNoteToCurrentCase() {
@@ -1693,7 +1946,7 @@
       if (!Array.isArray(caseObj.noteEntries)) {
         caseObj.noteEntries = [];
       }
-      caseObj.noteEntries.push({ date, text });
+      caseObj.noteEntries.push({ date: sanitizeString(date), text: sanitizeString(text) });
       saveCases(cases);
 
       document.getElementById('modalNoteDate').value = '';
@@ -1701,148 +1954,6 @@
       renderModalNotes(caseObj.noteEntries);
     }
 
-    // To-dos
-
-    function renderModalTodos(caseObj) {
-      const list = document.getElementById('modalTodosList');
-      list.innerHTML = '';
-
-      const todos = Array.isArray(caseObj.todos) ? caseObj.todos : [];
-
-      if (todos.length === 0) {
-        const li = document.createElement('li');
-        li.textContent = 'No to-dos for this case yet.';
-        list.appendChild(li);
-        return;
-      }
-
-      todos
-        .slice()
-        .sort((a, b) => {
-          if (a.deadline && b.deadline && a.deadline !== b.deadline) {
-            return a.deadline.localeCompare(b.deadline);
-          }
-          return (a.id || '').localeCompare(b.id || '');
-        })
-        .forEach(todo => {
-          const li = document.createElement('li');
-          li.className = 'todo-item';
-          if (todo.done) li.classList.add('todo-done');
-
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
-          checkbox.checked = !!todo.done;
-          checkbox.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleTodoDone(caseObj.id, todo.id, checkbox.checked);
-          });
-
-          const descSpan = document.createElement('span');
-          descSpan.className = 'todo-desc';
-          descSpan.textContent = todo.description || '(no description)';
-
-          const metaSpan = document.createElement('span');
-          metaSpan.className = 'todo-meta';
-          if (todo.deadline) {
-            metaSpan.textContent = 'Due ' + todo.deadline;
-          } else {
-            metaSpan.textContent = 'No deadline';
-          }
-
-          const delBtn = document.createElement('button');
-          delBtn.type = 'button';
-          delBtn.className = 'secondary small-link';
-          delBtn.textContent = 'Delete';
-          delBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            deleteTodoFromCase(caseObj.id, todo.id);
-          });
-
-          li.appendChild(checkbox);
-          li.appendChild(descSpan);
-          li.appendChild(metaSpan);
-          li.appendChild(delBtn);
-
-          list.appendChild(li);
-        });
-    }
-
-    function addTodoToCurrentCase() {
-      if (!currentModalCaseId) return;
-
-      const descInput = document.getElementById('modalTodoDescription');
-      const deadlineInput = document.getElementById('modalTodoDeadline');
-
-      const description = (descInput.value || '').trim();
-      const deadline = deadlineInput.value || '';
-
-      if (!description && !deadline) {
-        alert('Enter a description or a deadline for the to-do.');
-        return;
-      }
-
-      const cases = loadCases();
-      const idx = cases.findIndex(c => c.id === currentModalCaseId);
-      if (idx === -1) return;
-
-      const caseObj = cases[idx];
-      if (!Array.isArray(caseObj.todos)) caseObj.todos = [];
-
-      const todo = {
-        id: 'todo-' + Date.now() + '-' + Math.random().toString(36).slice(2),
-        description,
-        deadline,
-        done: false
-      };
-
-      caseObj.todos.push(todo);
-      saveCases(cases);
-
-      descInput.value = '';
-      deadlineInput.value = '';
-
-      renderModalTodos(caseObj);
-      renderCases();
-    }
-
-    function toggleTodoDone(caseId, todoId, done) {
-      const cases = loadCases();
-      const idx = cases.findIndex(c => c.id === caseId);
-      if (idx === -1) return;
-
-      const caseObj = cases[idx];
-      if (!Array.isArray(caseObj.todos)) return;
-
-      const t = caseObj.todos.find(t => t.id === todoId);
-      if (!t) return;
-
-      t.done = !!done;
-      saveCases(cases);
-
-      if (currentModalCaseId === caseId) {
-        renderModalTodos(caseObj);
-      }
-      renderCases();
-    }
-
-    function deleteTodoFromCase(caseId, todoId) {
-      const cases = loadCases();
-      const idx = cases.findIndex(c => c.id === caseId);
-      if (idx === -1) return;
-
-      const caseObj = cases[idx];
-      if (!Array.isArray(caseObj.todos)) return;
-
-      caseObj.todos = caseObj.todos.filter(t => t.id !== todoId);
-      saveCases(cases);
-
-      if (currentModalCaseId === caseId) {
-        renderModalTodos(caseObj);
-      }
-      renderCases();
-    }
-
-    // Collect excludable windows from modal
     function collectModalExWindows() {
       const rows = Array.from(document.querySelectorAll('#modalExRows .excalc-row'));
       const windows = [];
@@ -1855,7 +1966,7 @@
           windows.push({
             start: startVal,
             end: endVal,
-            reason: reasonVal,
+            reason: sanitizeString(reasonVal),
             arguable: argChecked
           });
         }
@@ -1871,10 +1982,10 @@
 
       const c = cases[idx];
 
-      c.clientName = document.getElementById('modalClientName').value.trim();
-      c.docketNumber = document.getElementById('modalDocketNumber').value.trim();
-      c.clientPhone = document.getElementById('modalClientPhone').value.trim();
-      c.clientEmail = document.getElementById('modalClientEmail').value.trim();
+      c.clientName = sanitizeString(document.getElementById('modalClientName').value.trim());
+      c.docketNumber = sanitizeString(document.getElementById('modalDocketNumber').value.trim());
+      c.clientPhone = sanitizeString(document.getElementById('modalClientPhone').value.trim());
+      c.clientEmail = sanitizeString(document.getElementById('modalClientEmail').value.trim());
       c.chargeLevel = document.getElementById('modalChargeLevel').value;
       c.startDate = document.getElementById('modalStartDate').value;
       c.arraignment_date = document.getElementById('modalArraignmentDate').value;
@@ -1882,8 +1993,8 @@
       c.definitelyExcludedDays = document.getElementById('modalDefExcluded').value || "0";
       c.arguablyExcludedDays = document.getElementById('modalArgExcluded').value || "0";
       c.nextCourtDate = document.getElementById('modalNcd').value;
-      c.courtPart = document.getElementById('modalPart').value.trim();
-      c.assignedAda = document.getElementById('modalAda').value.trim();
+      c.courtPart = sanitizeString(document.getElementById('modalPart').value.trim());
+      c.assignedAda = sanitizeString(document.getElementById('modalAda').value.trim());
 
       c.exWindows = collectModalExWindows();
 
@@ -1938,12 +2049,13 @@
 
       const existing = cases[idx];
 
+      // Build a fresh case object from the current modal fields without mutating storage
       const exported = {
         ...existing,
-        clientName: document.getElementById('modalClientName').value.trim(),
-        docketNumber: document.getElementById('modalDocketNumber').value.trim(),
-        clientPhone: document.getElementById('modalClientPhone').value.trim(),
-        clientEmail: document.getElementById('modalClientEmail').value.trim(),
+        clientName: sanitizeString(document.getElementById('modalClientName').value.trim()),
+        docketNumber: sanitizeString(document.getElementById('modalDocketNumber').value.trim()),
+        clientPhone: sanitizeString(document.getElementById('modalClientPhone').value.trim()),
+        clientEmail: sanitizeString(document.getElementById('modalClientEmail').value.trim()),
         chargeLevel: document.getElementById('modalChargeLevel').value,
         startDate: document.getElementById('modalStartDate').value,
         arraignment_date: document.getElementById('modalArraignmentDate').value,
@@ -1951,8 +2063,8 @@
         definitelyExcludedDays: document.getElementById('modalDefExcluded').value || "0",
         arguablyExcludedDays: document.getElementById('modalArgExcluded').value || "0",
         nextCourtDate: document.getElementById('modalNcd').value,
-        courtPart: document.getElementById('modalPart').value.trim(),
-        assignedAda: document.getElementById('modalAda').value.trim(),
+        courtPart: sanitizeString(document.getElementById('modalPart').value.trim()),
+        assignedAda: sanitizeString(document.getElementById('modalAda').value.trim()),
         cocFiled: document.getElementById('modalCocFiled').checked,
         cocDate: document.getElementById('modalCocDate').value,
         warrant: document.getElementById('modalWarrant').checked,
@@ -1961,6 +2073,7 @@
         exWindows: collectModalExWindows()
       };
 
+      // Handle frozenTotalDays for export based on clockStopped state
       let frozen = existing.frozenTotalDays ?? null;
       const newClockStopped = exported.clockStopped;
       const wasStopped = existing.clockStopped;
@@ -1977,7 +2090,7 @@
 
         const blob = new Blob([ciphertext], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
-        const safeName = (exported.clientName || 'case').replace(/[^a-z0-9\-]+/gi, '_');
+        const safeName = (exported.clientName || 'case').replace(/[^a-z0-9\-_]/gi, '_').slice(0, 80);
 
         const a = document.createElement('a');
         a.href = url;
@@ -1992,6 +2105,140 @@
         console.error(err);
         alert('Something went wrong exporting this case.');
       }
+    }
+
+    // --- To-do modal helpers ---
+
+    function renderModalTodos(todos) {
+      const list = document.getElementById('modalTodoList');
+      list.innerHTML = '';
+      if (!todos || todos.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'No to-dos yet.';
+        list.appendChild(li);
+        return;
+      }
+
+      todos.forEach((t, idx) => {
+        const li = document.createElement('li');
+        const isCompleted = !!t.completed;
+
+        let deadlineText = 'No deadline';
+        if (t.deadline) {
+          try {
+            const d = parseLocalDate(t.deadline);
+            deadlineText = formatDateWithWeekday(d);
+          } catch {
+            deadlineText = t.deadline;
+          }
+        }
+
+        if (isCompleted) {
+          li.className = 'todo-completed';
+        }
+
+        const dateSpan = document.createElement('span');
+        dateSpan.className = 'note-date';
+        dateSpan.textContent = deadlineText;
+        li.appendChild(dateSpan);
+        li.appendChild(document.createTextNode(': ' + (t.description || '')));
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'secondary small-link';
+        toggleBtn.style.marginLeft = '0.5rem';
+        toggleBtn.textContent = isCompleted ? 'Mark not done' : 'Mark done';
+        toggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleTodoCompleted(idx, !isCompleted);
+        });
+        li.appendChild(toggleBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'danger small-link';
+        delBtn.style.marginLeft = '0.25rem';
+        delBtn.textContent = 'Delete';
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteTodoFromCurrentCase(idx);
+        });
+        li.appendChild(delBtn);
+
+        list.appendChild(li);
+      });
+    }
+
+    function addTodoToCurrentCase() {
+      if (!currentModalCaseId) return;
+      const descEl = document.getElementById('modalTodoDescription');
+      const deadlineEl = document.getElementById('modalTodoDeadline');
+      const description = descEl.value.trim();
+      const deadline = deadlineEl.value;
+
+      if (!description && !deadline) {
+        alert('Enter at least a description or a deadline.');
+        return;
+      }
+
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const caseObj = cases[idx];
+      if (!Array.isArray(caseObj.todos)) {
+        caseObj.todos = [];
+      }
+      caseObj.todos.push({
+        description: sanitizeString(description),
+        deadline,
+        completed: false
+      });
+
+      saveCases(cases);
+      renderModalTodos(caseObj.todos);
+      renderCases();
+
+      descEl.value = '';
+      deadlineEl.value = '';
+    }
+
+    function deleteTodoFromCurrentCase(todoIndex) {
+      if (!currentModalCaseId && currentModalCaseId !== 0) return;
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const caseObj = cases[idx];
+      if (!Array.isArray(caseObj.todos)) {
+        caseObj.todos = [];
+      }
+      if (todoIndex < 0 || todoIndex >= caseObj.todos.length) return;
+
+      if (!confirm('Delete this to-do?')) return;
+
+      caseObj.todos.splice(todoIndex, 1);
+      saveCases(cases);
+      renderModalTodos(caseObj.todos);
+      renderCases();
+    }
+
+    function toggleTodoCompleted(todoIndex, completed) {
+      if (!currentModalCaseId && currentModalCaseId !== 0) return;
+      const cases = loadCases();
+      const idx = cases.findIndex(c => c.id === currentModalCaseId);
+      if (idx === -1) return;
+
+      const caseObj = cases[idx];
+      if (!Array.isArray(caseObj.todos)) {
+        caseObj.todos = [];
+      }
+      if (todoIndex < 0 || todoIndex >= caseObj.todos.length) return;
+
+      caseObj.todos[todoIndex].completed = completed;
+      saveCases(cases);
+      renderModalTodos(caseObj.todos);
+      renderCases();
     }
 
     // --- Advanced excludable modal (main form) ---
@@ -2086,7 +2333,7 @@
           const s = parseLocalDate(startVal);
           const e = parseLocalDate(endVal);
           if (e >= s) {
-            days = daysBetweenDates(s, e) + 1;
+            days = daysBetweenDates(s, e) + 1; // inclusive
             if (argChecked) totalArg += days;
             else totalDef += days;
           }
@@ -2097,7 +2344,7 @@
           windows.push({
             start: startVal,
             end: endVal,
-            reason: reasonVal,
+            reason: sanitizeString(reasonVal),
             arguable: argChecked
           });
         }
@@ -2365,9 +2612,7 @@
     // --- Local encrypted backup ---
 
     function setBackupStatus(msg) {
-      const el = document.getElementById('backupStatus');
-      if (!el) return;
-      el.textContent = msg || '';
+      document.getElementById('backupStatus').innerText = msg || '';
     }
 
     function getBackupPassword() {
@@ -2433,10 +2678,8 @@
             throw new Error('Decryption resulted in empty text (wrong password or corrupt file).');
           }
 
-          const importedCases = JSON.parse(plaintext);
-          if (!Array.isArray(importedCases)) {
-            throw new Error('Backup file format not recognized.');
-          }
+          const parsed = JSON.parse(plaintext);
+          const importedCases = validateAndNormalizeImportedCases(parsed);
 
           saveCases(importedCases);
           renderCases();
@@ -2474,14 +2717,7 @@
           }
 
           const parsed = JSON.parse(plaintext);
-          let importedCases;
-          if (Array.isArray(parsed)) {
-            importedCases = parsed;
-          } else if (parsed && typeof parsed === 'object') {
-            importedCases = [parsed];
-          } else {
-            throw new Error('Backup file format not recognized.');
-          }
+          const importedCases = validateAndNormalizeImportedCases(parsed);
 
           const existingCases = loadCases();
           importedCases.forEach(ic => {
@@ -2518,10 +2754,15 @@
       setBackupStatus('All cases cleared from this browser.');
     }
 
-    function updateBusyThresholdVisibility() {
-      const container = document.getElementById('busyThresholds');
-      const apply = document.getElementById('applyBusyFilter').checked;
-      container.style.display = apply ? 'flex' : 'none';
+    // --- View mode helpers ---
+
+    function setViewMode(mode) {
+      currentViewMode = mode;
+      const buttons = document.querySelectorAll('.view-mode');
+      buttons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+      });
+      renderCases();
     }
 
     // --- Form / events ---
@@ -2553,15 +2794,15 @@
           const existing = cases[idx];
           const updated = {
             ...existing,
-            clientName,
-            docketNumber,
+            clientName: sanitizeString(clientName),
+            docketNumber: sanitizeString(docketNumber),
             chargeLevel,
             startDate,
             excludedDays,
             definitelyExcludedDays,
             arguablyExcludedDays,
             nextCourtDate: ncd,
-            courtPart: part
+            courtPart: sanitizeString(part)
           };
 
           if (clockStopped && !existing.clockStopped) {
@@ -2580,8 +2821,8 @@
       } else {
         const newCase = {
           id: 'case-' + Date.now() + '-' + Math.random().toString(36).slice(2),
-          clientName,
-          docketNumber,
+          clientName: sanitizeString(clientName),
+          docketNumber: sanitizeString(docketNumber),
           chargeLevel,
           startDate,
           excludedDays,
@@ -2589,7 +2830,7 @@
           arguablyExcludedDays,
           notes: '',
           nextCourtDate: ncd,
-          courtPart: part,
+          courtPart: sanitizeString(part),
           assignedAda: '',
           noteEntries: [],
           warrant: false,
@@ -2626,12 +2867,26 @@
     document.getElementById('showWarrant').addEventListener('change', renderCases);
     document.getElementById('showClosed').addEventListener('change', renderCases);
     document.getElementById('showReadyOnly').addEventListener('change', renderCases);
-    document.getElementById('applyBusyFilter').addEventListener('change', () => {
-      updateBusyThresholdVisibility();
-      renderCases();
-    });
     document.getElementById('minCasesBusy').addEventListener('change', renderCases);
     document.getElementById('minPartsBusy').addEventListener('change', renderCases);
+
+    // view mode buttons
+    document.querySelectorAll('.view-mode').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.mode || 'all';
+        setViewMode(mode);
+      });
+    });
+
+    // advanced filters toggle
+    document.getElementById('advancedFiltersToggle').addEventListener('click', () => {
+      const box = document.getElementById('advancedFilters');
+      if (!box) return;
+      const isHidden = box.style.display === 'none' || box.style.display === '';
+      box.style.display = isHidden ? 'flex' : 'none';
+      document.getElementById('advancedFiltersToggle').textContent =
+        isHidden ? 'Hide advanced filters' : 'Advanced filters…';
+    });
 
     document.getElementById('exportBtn').addEventListener('click', exportEncryptedBackup);
     document.getElementById('importBtn').addEventListener('click', () => {
@@ -2682,6 +2937,15 @@
       modalIncludeArgEl.addEventListener('change', updateModal3030Date);
     }
 
+    const modalTodoCreateBtn = document.getElementById('modalTodoCreateBtn');
+    if (modalTodoCreateBtn) {
+      modalTodoCreateBtn.addEventListener('click', () => {
+        const row = document.getElementById('modalTodoCreateRow');
+        if (!row) return;
+        row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'block' : 'none';
+      });
+    }
+
     // Quick calculator events
     document.getElementById('quickExAddBtn').addEventListener('click', () => {
       addQuickExRow();
@@ -2690,20 +2954,7 @@
     document.getElementById('quickChargeLevel').addEventListener('change', updateQuickDeadline);
     document.getElementById('quickStartDate').addEventListener('change', updateQuickDeadline);
 
-    // To-do view toggle
-    document.getElementById('todosViewBtn').addEventListener('click', () => {
-      showTodosOnly = !showTodosOnly;
-      const btn = document.getElementById('todosViewBtn');
-      if (showTodosOnly) {
-        btn.classList.add('active');
-      } else {
-        btn.classList.remove('active');
-      }
-      renderCases();
-    });
-
     // Initial setup
-    updateBusyThresholdVisibility();
     renderCases();
     resetExCalc();
     resetModalExCalc();
