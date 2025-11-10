@@ -66,13 +66,13 @@
       color: #111827;
     }
     button.todo-cta {
-  background: #dc2626; /* red */
-  color: #ffffff;
-  font-weight: 600;
-}
-button.todo-cta:hover {
-  opacity: 0.9;
-}
+      background: #dc2626; /* red */
+      color: #ffffff;
+      font-weight: 600;
+    }
+    button.todo-cta:hover {
+      opacity: 0.9;
+    }
 
     .small-link {
       padding: 0.25rem 0.6rem;
@@ -389,6 +389,13 @@ button.todo-cta:hover {
       min-width: 180px;
     }
 
+    /* Prominent 30.30 date in modal */
+    #modal3030Date {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #111827;
+    }
+
     @media (max-width: 700px) {
       table {
         font-size: 0.75rem;
@@ -414,11 +421,11 @@ button.todo-cta:hover {
     <div class="dashboard-header">
       <div id="todayCard" class="today-card">
         <div class="today-title">Today</div>
-        <div id="todayNcdCount" class="today-metric">0 NCDs</div>
-        <div id="todayDetails" class="today-sub">No NCDs or to-dos due today.</div>
+        <div id="todayNcdCount" class="today-metric">0 court dates</div>
+        <div id="todayDetails" class="today-sub">No court dates or to-dos due today.</div>
       </div>
       <div id="weekSummary" class="small-text week-line">
-        This week: no NCDs or to-dos scheduled.
+        This week: no court dates or to-dos scheduled.
       </div>
     </div>
 
@@ -625,7 +632,7 @@ button.todo-cta:hover {
       </div>
     </div>
 
-    <!-- Busy day summary (still useful as a line under filters) -->
+    <!-- Busy day summary -->
     <div id="busySummary" class="small-text" style="margin-top:0.25rem;margin-bottom:0.25rem;">
       <!-- Filled in by JS -->
     </div>
@@ -683,10 +690,10 @@ button.todo-cta:hover {
 
       <!-- To-do creation + list -->
       <div class="form-row" style="margin-bottom:0.5rem;">
-  <button type="button" class="todo-cta small-link" id="modalTodoCreateBtn">
-    + Create to-do for this case
-  </button>
-</div>
+        <button type="button" class="todo-cta small-link" id="modalTodoCreateBtn">
+          + Create to-do for this case
+        </button>
+      </div>
       <div id="modalTodoCreateRow" style="display:none; margin-bottom:0.75rem;">
         <div class="form-row">
           <div class="field">
@@ -732,16 +739,20 @@ button.todo-cta:hover {
           <input id="modalExcludedDays" type="number" min="0">
         </div>
       </div>
- <div class="modal-section-title" style="margin-top:0.75rem;">30.30 Date (this case)</div>
+
+      <!-- Always-visible 30.30 date -->
+      <div class="modal-section-title" style="margin-top:0.75rem;">30.30 Date (this case)</div>
       <div class="small-text">
         30.30 Date: <span id="modal3030Date"></span>
       </div>
+
       <div class="form-row">
         <button type="button" class="secondary small-link" id="advancedModalToggle">
           Advanced excludable…
         </button>
       </div>
 
+      <!-- Advanced excludable section in modal -->
       <div id="advancedModalContainer" style="display:none; flex-direction:column; gap:0.75rem;">
         <div class="form-row">
           <div class="field">
@@ -774,10 +785,10 @@ button.todo-cta:hover {
           Total excludable (simple): <span id="modalExTotal">0</span>
         </div>
 
-      
+        <div class="small-text" style="margin-top:0.75rem;">
           <label>
             <input type="checkbox" id="modalIncludeArg" checked>
-            Include arguably excludable days
+            Include arguably excludable days in 30.30 Date
           </label>
         </div>
       </div>
@@ -1283,7 +1294,7 @@ button.todo-cta:hover {
     }
 
     function computeCapAndDeadline(level, startDateStr) {
-      if (!startDateStr) return { capDays: 0, deadlineStr: '', tooltip: '' };
+      if (!startDateStr) return { capDays: 0, deadlineStr: '', tooltip: '', deadlineDateObj: null };
 
       const start = parseLocalDate(startDateStr);
       let baseDeadline, capDays;
@@ -1301,13 +1312,13 @@ button.todo-cta:hover {
         baseDeadline = addDays(start, 30);
         capDays = 30;
       } else {
-        return { capDays: 0, deadlineStr: '', tooltip: '' };
+        return { capDays: 0, deadlineStr: '', tooltip: '', deadlineDateObj: null };
       }
 
       const { adjustedDate, tooltip } = adjustForWeekendOrHoliday(baseDeadline);
       const deadlineStr = formatDate(adjustedDate);
 
-      return { capDays, deadlineStr, tooltip };
+      return { capDays, deadlineStr, tooltip, deadlineDateObj: adjustedDate };
     }
 
     function computeQuickDeadline(level, startDateStr, exDays) {
@@ -1545,10 +1556,10 @@ button.todo-cta:hover {
       const todayIsBusy = (todayNcdCount > minCases) || (todayPartsCount > minParts);
 
       todayCard.classList.toggle('busy', todayIsBusy);
-      todayNcdLabel.textContent = `${todayNcdCount} NCD${todayNcdCount === 1 ? '' : 's'}`;
+      todayNcdLabel.textContent = `${todayNcdCount} court date${todayNcdCount === 1 ? '' : 's'}`;
 
       if (todayNcdCount === 0 && todayTodosDue === 0) {
-        todayDetails.textContent = 'No NCDs or to-dos due today.';
+        todayDetails.textContent = 'No court dates or to-dos due today.';
       } else {
         const partsText = `${todayPartsCount} part${todayPartsCount === 1 ? '' : 's'}`;
         const todosText = `${todayTodosDue} to-do${todayTodosDue === 1 ? '' : 's'} due`;
@@ -1618,11 +1629,11 @@ button.todo-cta:hover {
       }
 
       if (weekNcdCount === 0 && weekTodosDue === 0) {
-        weekSummary.textContent = 'This week: no NCDs or to-dos scheduled.';
+        weekSummary.textContent = 'This week: no court dates or to-dos scheduled.';
       } else {
         const partsCount = weekPartsSet.size;
         weekSummary.textContent =
-          `This week: ${weekNcdCount} NCD${weekNcdCount === 1 ? '' : 's'} • ` +
+          `This week: ${weekNcdCount} court date${weekNcdCount === 1 ? '' : 's'} • ` +
           `${partsCount} part${partsCount === 1 ? '' : 's'} • ` +
           `${weekTodosDue} case${weekTodosDue === 1 ? '' : 's'} with to-dos due` +
           busiestSnippet;
@@ -1752,18 +1763,24 @@ button.todo-cta:hover {
 
         const chargeable = Math.max(0, totalDays - excluded);
 
-        const { capDays, deadlineStr, tooltip } = computeCapAndDeadline(c.chargeLevel, c.startDate);
+        const { capDays, deadlineStr, tooltip, deadlineDateObj } = computeCapAndDeadline(c.chargeLevel, c.startDate);
         const ncdCls = ncdClass(c.nextCourtDate);
 
-        let remainingText = '';
-        if (capDays) {
-          const remaining = capDays - chargeable;
-          if (remaining > 0) {
-            remainingText = `(${remaining} days remaining)`;
-          } else if (remaining === 0) {
-            remainingText = `(deadline today)`;
+        // Days until 30.30 deadline (from today)
+        let deadlineDiffLabel = '';
+        if (capDays && deadlineDateObj) {
+          const today0 = new Date();
+          today0.setHours(0,0,0,0);
+          const deadline0 = new Date(deadlineDateObj.getTime());
+          deadline0.setHours(0,0,0,0);
+          const diffDays = Math.floor((deadline0 - today0) / (1000 * 60 * 60 * 24));
+          if (diffDays > 0) {
+            deadlineDiffLabel = `${diffDays} day${diffDays === 1 ? '' : 's'} until 30.30 deadline`;
+          } else if (diffDays === 0) {
+            deadlineDiffLabel = '30.30 deadline today';
           } else {
-            remainingText = `${Math.abs(remaining)} days past deadline`;
+            const n = Math.abs(diffDays);
+            deadlineDiffLabel = `${n} day${n === 1 ? '' : 's'} past 30.30 deadline`;
           }
         }
 
@@ -1874,6 +1891,12 @@ button.todo-cta:hover {
         // Total days
         const tdTotal = document.createElement('td');
         tdTotal.textContent = String(totalDays);
+        if (deadlineDiffLabel) {
+          const diffDiv = document.createElement('div');
+          diffDiv.className = 'small-text';
+          diffDiv.textContent = deadlineDiffLabel;
+          tdTotal.appendChild(diffDiv);
+        }
 
         // Excluded
         const tdExcluded = document.createElement('td');
@@ -1897,10 +1920,10 @@ button.todo-cta:hover {
         const tdNcd = document.createElement('td');
         if (ncdCls) tdNcd.classList.add(ncdCls);
         tdNcd.textContent = c.nextCourtDate || '';
-        if (remainingText) {
+        if (deadlineDiffLabel) {
           const remDiv = document.createElement('div');
           remDiv.className = 'small-text';
-          remDiv.textContent = remainingText;
+          remDiv.textContent = deadlineDiffLabel;
           tdNcd.appendChild(remDiv);
         }
 
@@ -1982,6 +2005,7 @@ button.todo-cta:hover {
       loadModalExCalc(c.exWindows || []);
 
       document.getElementById('caseModal').style.display = 'flex';
+      updateModal3030Date();
     }
 
     function closeCaseModal() {
