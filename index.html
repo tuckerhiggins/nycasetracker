@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- CSP: limit sources + allow inline scripts/styles needed by this file and CryptoJS CDN -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdnjs.cloudflare.com; script-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; block-all-mixed-content;">
+  <!-- CSP: limit sources + allow inline scripts/styles needed by this file -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; block-all-mixed-content;">
   <title>Case Tracker</title>
   <style>
     body {
@@ -881,9 +881,6 @@
     </div>
   </div>
 
-  <!-- CryptoJS for AES encryption of backups -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
-
   <script>
     let currentModalCaseId = null;
     let exCalcRowCounter = 0;
@@ -894,9 +891,117 @@
     // excludable windows for the new (unsaved) case from main form
     let pendingExWindows = [];
 
+    // --- Web Crypto helpers (AES-GCM + PBKDF2) ---
+
+    const ENCRYPTION_VERSION = 'nyct-v1';
+    const PBKDF2_ITERATIONS = 100000;
+
+    function ensureCryptoSupport() {
+      if (!window.crypto || !window.crypto.subtle) {
+        throw new Error('This browser does not support secure encryption (Web Crypto API).');
+      }
+    }
+
+    function arrayBufferToBase64(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    }
+
+    function base64ToArrayBuffer(base64) {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
+    async function deriveKeyFromPassword(password, salt) {
+      ensureCryptoSupport();
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        enc.encode(password),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveKey']
+      );
+      return crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt,
+          iterations: PBKDF2_ITERATIONS,
+          hash: 'SHA-256'
+        },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    async function encryptStringWithPassword(plaintext, password) {
+      ensureCryptoSupport();
+      const enc = new TextEncoder();
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = await deriveKeyFromPassword(password, salt);
+      const ciphertext = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        enc.encode(plaintext)
+      );
+
+      const payload = {
+        v: ENCRYPTION_VERSION,
+        alg: 'AES-GCM',
+        kdf: 'PBKDF2',
+        iterations: PBKDF2_ITERATIONS,
+        salt: arrayBufferToBase64(salt.buffer),
+        iv: arrayBufferToBase64(iv.buffer),
+        data: arrayBufferToBase64(ciphertext)
+      };
+      return JSON.stringify(payload);
+    }
+
+    async function decryptStringWithPassword(payloadText, password) {
+      ensureCryptoSupport();
+      let payload;
+      try {
+        payload = JSON.parse(payloadText);
+      } catch {
+        throw new Error('Backup file is not valid JSON.');
+      }
+
+      if (!payload || payload.v !== ENCRYPTION_VERSION) {
+        throw new Error('Unsupported or missing encryption format/version.');
+      }
+
+      const saltBuf = base64ToArrayBuffer(payload.salt);
+      const ivBuf = base64ToArrayBuffer(payload.iv);
+      const dataBuf = base64ToArrayBuffer(payload.data);
+
+      const key = await deriveKeyFromPassword(password, new Uint8Array(saltBuf));
+      let plaintextBuf;
+      try {
+        plaintextBuf = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: new Uint8Array(ivBuf) },
+          key,
+          dataBuf
+        );
+      } catch {
+        throw new Error('Decryption failed. Wrong password or corrupt file.');
+      }
+      const dec = new TextDecoder();
+      return dec.decode(plaintextBuf);
+    }
+
     // --- Sanitization + normalization helpers ---
 
-    // Strip angle brackets + control chars from strings for imported/loaded data
     function sanitizeString(s) {
       if (s == null) return '';
       return String(s)
@@ -1251,7 +1356,6 @@
 
     // --- UI helpers ---
 
-    // Create a charge tag element instead of writing HTML
     function chargeTagElement(level) {
       const span = document.createElement('span');
       span.className = 'tag';
@@ -1517,7 +1621,7 @@
       }
     }
 
-    // --- Rendering main table (safe DOM construction, no user HTML injection) ---
+    // --- Rendering main table ---
 
     function renderCases() {
       const tbody = document.getElementById('casesBody');
@@ -1533,7 +1637,7 @@
 
       let cases = allCases;
 
-      // Base filters: ready / warrant / closed
+      // Base filters
       cases = cases.filter(c => {
         if (showReadyOnly && !c.cocFiled) return false;
         if (c.closed && !showClosed) return false;
@@ -1556,12 +1660,11 @@
         });
       }
 
-      // Update dashboard + busy-day summary based on this filtered set
       const casesForSummary = cases.slice();
       updateBusySummary(casesForSummary);
       updateDashboardHeader(casesForSummary);
 
-      // View mode: today / busy / todos
+      // View modes
       const today = new Date();
       today.setHours(0,0,0,0);
 
@@ -1591,7 +1694,6 @@
           const s = stats[c.nextCourtDate];
           if (!s) return false;
           const partsCount = s.parts.size;
-          // Busy = more than minCases OR more than minParts
           return (s.count > minCasesBusy) || (partsCount > minPartsBusy);
         });
       } else if (currentViewMode === 'todos') {
@@ -1752,7 +1854,7 @@
         const tdDocket = document.createElement('td');
         tdDocket.textContent = c.docketNumber || '';
 
-        // Charge tag
+        // Charge
         const tdCharge = document.createElement('td');
         const tagEl = chargeTagElement(c.chargeLevel);
         if (tagEl) tdCharge.appendChild(tagEl);
@@ -1845,12 +1947,11 @@
       document.getElementById('modalClosed').checked = !!c.closed;
       document.getElementById('modalCocFiled').checked = !!c.cocFiled;
       document.getElementById('modalCocDate').value = c.cocDate || '';
-      document.getElementById('modalIncludeArg').checked = true; // default
+      document.getElementById('modalIncludeArg').checked = true;
 
       document.getElementById('modalNoteDate').value = '';
       document.getElementById('modalNoteText').value = '';
 
-      // Reset to-do creation UI
       const todoCreateRow = document.getElementById('modalTodoCreateRow');
       if (todoCreateRow) todoCreateRow.style.display = 'none';
       const todoDescInput = document.getElementById('modalTodoDescription');
@@ -1862,7 +1963,9 @@
       renderModalTodos(c.todos || []);
 
       const advModal = document.getElementById('advancedModalContainer');
-      if ((Number(c.definitelyExcludedDays) || 0) > 0 || (Number(c.arguablyExcludedDays) || 0) > 0 || (c.exWindows && c.exWindows.length > 0)) {
+      if ((Number(c.definitelyExcludedDays) || 0) > 0 ||
+          (Number(c.arguablyExcludedDays) || 0) > 0 ||
+          (c.exWindows && c.exWindows.length > 0)) {
         advModal.style.display = 'flex';
       } else {
         advModal.style.display = 'none';
@@ -2028,7 +2131,7 @@
       closeCaseModal();
     }
 
-    function exportCurrentCase() {
+    async function exportCurrentCase() {
       if (!currentModalCaseId) {
         alert('Open a case first to export it.');
         return;
@@ -2049,7 +2152,6 @@
 
       const existing = cases[idx];
 
-      // Build a fresh case object from the current modal fields without mutating storage
       const exported = {
         ...existing,
         clientName: sanitizeString(document.getElementById('modalClientName').value.trim()),
@@ -2073,7 +2175,6 @@
         exWindows: collectModalExWindows()
       };
 
-      // Handle frozenTotalDays for export based on clockStopped state
       let frozen = existing.frozenTotalDays ?? null;
       const newClockStopped = exported.clockStopped;
       const wasStopped = existing.clockStopped;
@@ -2086,9 +2187,9 @@
 
       try {
         const plaintext = JSON.stringify(exported);
-        const ciphertext = CryptoJS.AES.encrypt(plaintext, password).toString();
+        const ciphertextPayload = await encryptStringWithPassword(plaintext, password);
 
-        const blob = new Blob([ciphertext], { type: 'text/plain' });
+        const blob = new Blob([ciphertextPayload], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const safeName = (exported.clientName || 'case').replace(/[^a-z0-9\-_]/gi, '_').slice(0, 80);
 
@@ -2333,7 +2434,7 @@
           const s = parseLocalDate(startVal);
           const e = parseLocalDate(endVal);
           if (e >= s) {
-            days = daysBetweenDates(s, e) + 1; // inclusive
+            days = daysBetweenDates(s, e) + 1;
             if (argChecked) totalArg += days;
             else totalDef += days;
           }
@@ -2624,7 +2725,7 @@
       return pw;
     }
 
-    function exportEncryptedBackup() {
+    async function exportEncryptedBackup() {
       const password = getBackupPassword();
       if (!password) return;
 
@@ -2637,9 +2738,9 @@
 
       try {
         const plaintext = JSON.stringify(cases);
-        const ciphertext = CryptoJS.AES.encrypt(plaintext, password).toString();
+        const ciphertextPayload = await encryptStringWithPassword(plaintext, password);
 
-        const blob = new Blob([ciphertext], { type: 'text/plain' });
+        const blob = new Blob([ciphertextPayload], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
 
         const a = document.createElement('a');
@@ -2657,7 +2758,7 @@
       }
     }
 
-    function handleImportFile(event) {
+    async function handleImportFile(event) {
       const file = event.target.files[0];
       if (!file) return;
 
@@ -2668,11 +2769,10 @@
       }
 
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = async function(e) {
         try {
-          const ciphertext = e.target.result;
-          const bytes = CryptoJS.AES.decrypt(ciphertext, password);
-          const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+          const ciphertextPayload = e.target.result;
+          const plaintext = await decryptStringWithPassword(ciphertextPayload, password);
 
           if (!plaintext) {
             throw new Error('Decryption resulted in empty text (wrong password or corrupt file).');
@@ -2695,7 +2795,7 @@
       reader.readAsText(file);
     }
 
-    function handleImportMergeFile(event) {
+    async function handleImportMergeFile(event) {
       const file = event.target.files[0];
       if (!file) return;
 
@@ -2706,11 +2806,10 @@
       }
 
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = async function(e) {
         try {
-          const ciphertext = e.target.result;
-          const bytes = CryptoJS.AES.decrypt(ciphertext, password);
-          const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+          const ciphertextPayload = e.target.result;
+          const plaintext = await decryptStringWithPassword(ciphertextPayload, password);
 
           if (!plaintext) {
             throw new Error('Decryption resulted in empty text (wrong password or corrupt file).');
@@ -2850,7 +2949,6 @@
 
       saveCases(cases);
 
-      // reset new-case state
       pendingExWindows = [];
       document.getElementById('editingId').value = '';
       document.getElementById('case-form').reset();
@@ -2870,7 +2968,6 @@
     document.getElementById('minCasesBusy').addEventListener('change', renderCases);
     document.getElementById('minPartsBusy').addEventListener('change', renderCases);
 
-    // view mode buttons
     document.querySelectorAll('.view-mode').forEach(btn => {
       btn.addEventListener('click', () => {
         const mode = btn.dataset.mode || 'all';
@@ -2878,7 +2975,6 @@
       });
     });
 
-    // advanced filters toggle
     document.getElementById('advancedFiltersToggle').addEventListener('click', () => {
       const box = document.getElementById('advancedFilters');
       if (!box) return;
