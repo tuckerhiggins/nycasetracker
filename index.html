@@ -1437,220 +1437,35 @@
 
     // --- Rendering main table ---
 
-    function renderCases() {
-      const tbody = document.getElementById('casesBody');
-      const allCases = loadCases();
-      const filter = document.getElementById('search').value.toLowerCase();
-      const sortMode = document.getElementById('sortMode').value;
-      const showWarrant = document.getElementById('showWarrant').checked;
-      const showClosed = document.getElementById('showClosed').checked;
-      const showReadyOnly = document.getElementById('showReadyOnly').checked;
-      const excludeMode = document.getElementById('excludeMode').value;
-      const minCasesBusy = Math.max(1, parseInt(document.getElementById('minCasesBusy').value) || 3);
-      const minPartsBusy = Math.max(1, parseInt(document.getElementById('minPartsBusy').value) || 2);
+    function renderModalNotes(notes) {
+  const list = document.getElementById('modalNotesList');
+  list.innerHTML = '';
 
-      let cases = allCases;
+  if (!notes || notes.length === 0) {
+    const li = document.createElement('li');
+    li.textContent = 'No notes yet.';
+    list.appendChild(li);
+    return;
+  }
 
-      // Base filters: ready / warrant / closed
-      cases = cases.filter(c => {
-        if (showReadyOnly && !c.cocFiled) return false;
-        if (c.closed && !showClosed) return false;
-        if (c.warrant && !showWarrant) return false;
-        return true;
-      });
+  notes.forEach(n => {
+    const li = document.createElement('li');
 
-      // Text search
-      if (filter) {
-        cases = cases.filter(c => {
-          const combinedText = (
-            c.clientName + ' ' +
-            c.docketNumber + ' ' +
-            (c.notes || '') + ' ' +
-            (c.assignedAda || '') + ' ' +
-            (c.clientPhone || '') + ' ' +
-            (c.clientEmail || '')
-          ).toLowerCase();
-          return combinedText.includes(filter);
-        });
-      }
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'note-date';
+    dateSpan.textContent = n.date || '';
 
-      // Update dashboard + busy-day summary based on this filtered set
-      const casesForSummary = cases.slice();
-      updateBusySummary(casesForSummary);
-      updateDashboardHeader(casesForSummary);
+    li.appendChild(dateSpan);
 
-      // View mode: today / busy / todos
-      const today = new Date();
-      today.setHours(0,0,0,0);
-
-      if (currentViewMode === 'today') {
-        cases = cases.filter(c => {
-          if (!c.nextCourtDate) return false;
-          try {
-            const d = parseLocalDate(c.nextCourtDate);
-            d.setHours(0,0,0,0);
-            return isSameDay(d, today);
-          } catch {
-            return false;
-          }
-        });
-      } else if (currentViewMode === 'busy') {
-        const stats = {};
-        cases.forEach(c => {
-          if (!c.nextCourtDate) return;
-          const key = c.nextCourtDate;
-          if (!stats[key]) stats[key] = { count: 0, parts: new Set() };
-          stats[key].count++;
-          if (c.courtPart) stats[key].parts.add(c.courtPart);
-        });
-
-        cases = cases.filter(c => {
-          if (!c.nextCourtDate) return false;
-          const s = stats[c.nextCourtDate];
-          if (!s) return false;
-          const partsCount = s.parts.size;
-          // Busy = more than minCases OR more than minParts
-          return (s.count > minCasesBusy) || (partsCount > minPartsBusy);
-        });
-      } else if (currentViewMode === 'todos') {
-        cases = cases.filter(c =>
-          Array.isArray(c.todos) && c.todos.some(t => t && !t.completed)
-        );
-      }
-
-      // Sorting
-      if (currentViewMode === 'todos') {
-        cases.sort(compareByTodoDeadlineThenClient);
-      } else if (sortMode === 'ncd') {
-        cases.sort(compareByNcd);
-      } else {
-        cases.sort(compareByClient);
-      }
-
-      tbody.innerHTML = '';
-
-      cases.forEach(c => {
-        let totalDays;
-        if (c.cocFiled && c.cocDate && c.startDate) {
-          const s = parseLocalDate(c.startDate);
-          const d = parseLocalDate(c.cocDate);
-          totalDays = Math.max(0, daysBetweenDates(s, d));
-        } else if (c.clockStopped && c.frozenTotalDays != null) {
-          totalDays = c.frozenTotalDays;
-        } else {
-          totalDays = daysBetween(c.startDate);
-        }
-
-        const defEx = Number(c.definitelyExcludedDays) || 0;
-        const argEx = Number(c.arguablyExcludedDays) || 0;
-        const simpleExcluded = Number(c.excludedDays) || 0;
-
-        let excluded = simpleExcluded;
-        let excludedDetail = `${simpleExcluded} (simple total)`;
-
-        if (defEx || argEx) {
-          if (excludeMode === 'defOnly') {
-            excluded = defEx;
-            excludedDetail = `${defEx} definitely excludable; ${argEx} arguably excludable (not counted)`;
-          } else {
-            excluded = defEx + argEx;
-            excludedDetail = `${defEx} definitely + ${argEx} arguably excludable (both counted)`;
-          }
-        }
-
-        const chargeable = Math.max(0, totalDays - excluded);
-
-        const { capDays, deadlineStr, tooltip } = computeCapAndDeadline(c.chargeLevel, c.startDate);
-        const ncdCls = ncdClass(c.nextCourtDate);
-
-        let remainingText = '';
-        if (capDays) {
-          const remaining = capDays - chargeable;
-          if (remaining > 0) {
-            remainingText = `(${remaining} days remaining)`;
-          } else if (remaining === 0) {
-            remainingText = `(deadline today)`;
-          } else {
-            remainingText = `${Math.abs(remaining)} days past deadline`;
-          }
-        }
-
-        const tr = document.createElement('tr');
-        if (c.warrant) tr.classList.add('row-warrant');
-        if (c.closed) tr.classList.add('row-closed');
-        if (c.cocFiled) tr.classList.add('row-ready');
-
-        const todos = Array.isArray(c.todos) ? c.todos : [];
-        const outstandingTodos = todos.filter(t => t && !t.completed);
-        let todoInfoHtml = '';
-
-        if (outstandingTodos.length > 0) {
-          let nextTodo = null;
-          let nextDeadlineDate = null;
-
-          outstandingTodos.forEach(t => {
-            if (t.deadline) {
-              try {
-                const d = parseLocalDate(t.deadline);
-                if (!nextDeadlineDate || d < nextDeadlineDate) {
-                  nextDeadlineDate = d;
-                  nextTodo = t;
-                }
-              } catch {
-                if (!nextTodo) nextTodo = t;
-              }
-            } else if (!nextTodo && !nextDeadlineDate) {
-              nextTodo = t;
-            }
-          });
-
-          if (nextTodo) {
-            let label;
-            if (nextDeadlineDate) {
-              label = formatDateWithWeekday(nextDeadlineDate);
-            } else if (nextTodo.deadline) {
-              label = nextTodo.deadline;
-            } else {
-              label = 'No deadline set';
-            }
-            const desc = nextTodo.description || '';
-            todoInfoHtml = `<div class="small-text">Next to-do: ${label}${desc ? ' – ' + desc : ''}</div>`;
-          }
-
-          tr.classList.add('row-todo-highlight');
-        }
-
-        let clientCell = c.clientName;
-        if (c.warrant) clientCell += ' <span class="badge badge-warrant">Warrant</span>';
-        if (c.closed) clientCell += ' <span class="badge badge-closed">Closed</span>';
-        if (c.clockStopped) clientCell += ' <span class="badge" style="background:#e0f2fe;color:#1d4ed8;">Clock stopped</span>';
-        if (c.cocFiled) clientCell += ' <span class="badge" style="background:#dbeafe;color:#1d4ed8;">READY (COC filed)</span>';
-        if (outstandingTodos.length > 0) clientCell += ' <span class="badge badge-todo">To-do!</span>';
-
-        tr.innerHTML = `
-          <td>${clientCell}${todoInfoHtml}</td>
-          <td>${c.docketNumber || ''}</td>
-          <td>${chargeTag(c.chargeLevel)}</td>
-          <td>${c.startDate || ''}</td>
-          <td>${totalDays}</td>
-          <td title="${excludedDetail}">${excluded}</td>
-          <td>${chargeable}</td>
-          <td>${capDays || ''}</td>
-          <td title="${tooltip || ''}">${deadlineStr || ''}</td>
-          <td class="${ncdCls}">
-            ${c.nextCourtDate || ''}
-            ${remainingText ? `<div class="small-text">${remainingText}</div>` : ''}
-          </td>
-          <td>${c.courtPart || ''}</td>
-        `;
-
-        tr.addEventListener('click', () => {
-          openCaseModal(c.id);
-        });
-
-        tbody.appendChild(tr);
-      });
+    if (n.text) {
+      // Add ": " and the note text as plain text, not HTML
+      li.appendChild(document.createTextNode(': ' + n.text));
     }
+
+    list.appendChild(li);
+  });
+}
+
 
     // --- Case modal logic ---
 
