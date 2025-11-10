@@ -580,7 +580,7 @@
         <label for="sortMode">Sort by</label>
         <select id="sortMode">
           <option value="client">Client (A → Z)</option>
-          <option value="ncd">NCD (soonest first)</option>
+          <option value="ncd">Court date (soonest first)</option>
         </select>
       </div>
 
@@ -1294,7 +1294,7 @@
     }
 
     function computeCapAndDeadline(level, startDateStr) {
-      if (!startDateStr) return { capDays: 0, deadlineStr: '', tooltip: '', deadlineDateObj: null };
+      if (!startDateStr) return { capDays: 0, deadlineStr: '', tooltip: '' };
 
       const start = parseLocalDate(startDateStr);
       let baseDeadline, capDays;
@@ -1312,13 +1312,13 @@
         baseDeadline = addDays(start, 30);
         capDays = 30;
       } else {
-        return { capDays: 0, deadlineStr: '', tooltip: '', deadlineDateObj: null };
+        return { capDays: 0, deadlineStr: '', tooltip: '' };
       }
 
       const { adjustedDate, tooltip } = adjustForWeekendOrHoliday(baseDeadline);
       const deadlineStr = formatDate(adjustedDate);
 
-      return { capDays, deadlineStr, tooltip, deadlineDateObj: adjustedDate };
+      return { capDays, deadlineStr, tooltip };
     }
 
     function computeQuickDeadline(level, startDateStr, exDays) {
@@ -1556,7 +1556,8 @@
       const todayIsBusy = (todayNcdCount > minCases) || (todayPartsCount > minParts);
 
       todayCard.classList.toggle('busy', todayIsBusy);
-      todayNcdLabel.textContent = `${todayNcdCount} court date${todayNcdCount === 1 ? '' : 's'}`;
+      const todayCdWord = todayNcdCount === 1 ? 'court date' : 'court dates';
+      todayNcdLabel.textContent = `${todayNcdCount} ${todayCdWord}`;
 
       if (todayNcdCount === 0 && todayTodosDue === 0) {
         todayDetails.textContent = 'No court dates or to-dos due today.';
@@ -1632,8 +1633,9 @@
         weekSummary.textContent = 'This week: no court dates or to-dos scheduled.';
       } else {
         const partsCount = weekPartsSet.size;
+        const weekCdWord = weekNcdCount === 1 ? 'court date' : 'court dates';
         weekSummary.textContent =
-          `This week: ${weekNcdCount} court date${weekNcdCount === 1 ? '' : 's'} • ` +
+          `This week: ${weekNcdCount} ${weekCdWord} • ` +
           `${partsCount} part${partsCount === 1 ? '' : 's'} • ` +
           `${weekTodosDue} case${weekTodosDue === 1 ? '' : 's'} with to-dos due` +
           busiestSnippet;
@@ -1763,25 +1765,45 @@
 
         const chargeable = Math.max(0, totalDays - excluded);
 
-        const { capDays, deadlineStr, tooltip, deadlineDateObj } = computeCapAndDeadline(c.chargeLevel, c.startDate);
+        const { capDays, deadlineStr, tooltip } = computeCapAndDeadline(c.chargeLevel, c.startDate);
         const ncdCls = ncdClass(c.nextCourtDate);
 
-        // Days until 30.30 deadline (from today)
-        let deadlineDiffLabel = '';
-        if (capDays && deadlineDateObj) {
-          const today0 = new Date();
-          today0.setHours(0,0,0,0);
-          const deadline0 = new Date(deadlineDateObj.getTime());
-          deadline0.setHours(0,0,0,0);
-          const diffDays = Math.floor((deadline0 - today0) / (1000 * 60 * 60 * 24));
-          if (diffDays > 0) {
-            deadlineDiffLabel = `${diffDays} day${diffDays === 1 ? '' : 's'} until 30.30 deadline`;
-          } else if (diffDays === 0) {
-            deadlineDiffLabel = '30.30 deadline today';
-          } else {
-            const n = Math.abs(diffDays);
-            deadlineDiffLabel = `${n} day${n === 1 ? '' : 's'} past 30.30 deadline`;
-          }
+        // New: days until 30.30 deadline (from today / from NCD)
+        let totalDeadlineText = '';
+        let ncdDeadlineText = '';
+
+        if (!c.cocFiled && deadlineStr) {
+          try {
+            const deadlineDate = parseLocalDate(deadlineStr);
+            deadlineDate.setHours(0,0,0,0);
+
+            const today0 = new Date();
+            today0.setHours(0,0,0,0);
+            const diffToday = Math.round((deadlineDate - today0) / (1000 * 60 * 60 * 24));
+
+            if (diffToday > 0) {
+              totalDeadlineText = `${diffToday} day${diffToday === 1 ? '' : 's'} until 30.30 deadline`;
+            } else if (diffToday === 0) {
+              totalDeadlineText = `30.30 deadline today`;
+            } else {
+              const n = Math.abs(diffToday);
+              totalDeadlineText = `${n} day${n === 1 ? '' : 's'} past 30.30 deadline`;
+            }
+
+            if (c.nextCourtDate) {
+              const ncdDate = parseLocalDate(c.nextCourtDate);
+              ncdDate.setHours(0,0,0,0);
+              const diffNcd = Math.round((deadlineDate - ncdDate) / (1000 * 60 * 60 * 24));
+              if (diffNcd > 0) {
+                ncdDeadlineText = `${diffNcd} day${diffNcd === 1 ? '' : 's'} until 30.30 deadline from court date`;
+              } else if (diffNcd === 0) {
+                ncdDeadlineText = `30.30 deadline on this court date`;
+              } else {
+                const n2 = Math.abs(diffNcd);
+                ncdDeadlineText = `${n2} day${n2 === 1 ? '' : 's'} past 30.30 deadline as of this court date`;
+              }
+            }
+          } catch {}
         }
 
         const tr = document.createElement('tr');
@@ -1891,11 +1913,11 @@
         // Total days
         const tdTotal = document.createElement('td');
         tdTotal.textContent = String(totalDays);
-        if (deadlineDiffLabel) {
-          const diffDiv = document.createElement('div');
-          diffDiv.className = 'small-text';
-          diffDiv.textContent = deadlineDiffLabel;
-          tdTotal.appendChild(diffDiv);
+        if (totalDeadlineText) {
+          const infoDiv = document.createElement('div');
+          infoDiv.className = 'small-text';
+          infoDiv.textContent = totalDeadlineText;
+          tdTotal.appendChild(infoDiv);
         }
 
         // Excluded
@@ -1920,10 +1942,10 @@
         const tdNcd = document.createElement('td');
         if (ncdCls) tdNcd.classList.add(ncdCls);
         tdNcd.textContent = c.nextCourtDate || '';
-        if (deadlineDiffLabel) {
+        if (ncdDeadlineText) {
           const remDiv = document.createElement('div');
           remDiv.className = 'small-text';
-          remDiv.textContent = deadlineDiffLabel;
+          remDiv.textContent = ncdDeadlineText;
           tdNcd.appendChild(remDiv);
         }
 
@@ -2005,7 +2027,6 @@
       loadModalExCalc(c.exWindows || []);
 
       document.getElementById('caseModal').style.display = 'flex';
-      updateModal3030Date();
     }
 
     function closeCaseModal() {
@@ -2115,6 +2136,16 @@
       const idx = cases.findIndex(c => c.id === currentModalCaseId);
       if (idx === -1) return;
 
+      const cocFiledCheckbox = document.getElementById('modalCocFiled');
+      const cocDateInput = document.getElementById('modalCocDate');
+      const cocFiledChecked = cocFiledCheckbox.checked;
+      const cocDateVal = cocDateInput.value;
+
+      if (cocFiledChecked && !cocDateVal) {
+        alert('Please enter a COC date before marking the case as READY (COC filed).');
+        return;
+      }
+
       const c = cases[idx];
 
       c.clientName = sanitizeString(document.getElementById('modalClientName').value.trim());
@@ -2145,8 +2176,8 @@
       c.clockStopped = newClockStopped;
       c.warrant = document.getElementById('modalWarrant').checked;
       c.closed = document.getElementById('modalClosed').checked;
-      c.cocFiled = document.getElementById('modalCocFiled').checked;
-      c.cocDate = document.getElementById('modalCocDate').value;
+      c.cocFiled = cocFiledChecked;
+      c.cocDate = cocDateVal;
 
       saveCases(cases);
       renderCases();
@@ -2206,6 +2237,11 @@
         clockStopped: document.getElementById('modalClockStopped').checked,
         exWindows: collectModalExWindows()
       };
+
+      if (exported.cocFiled && !exported.cocDate) {
+        alert('Please enter a COC date before marking the case as READY (COC filed).');
+        return;
+      }
 
       let frozen = existing.frozenTotalDays ?? null;
       const newClockStopped = exported.clockStopped;
