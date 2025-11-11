@@ -2426,6 +2426,7 @@ function printTodaysCases() {
 // GLOBAL WINDOW FUNCTIONS (for onclick handlers in HTML)
 // ============================================================================
 
+window.openCaseModal = openCaseModal;
 window.closeCaseModal = closeCaseModal;
 window.saveModalChanges = saveModalChanges;
 window.deleteCurrentCase = deleteCurrentCase;
