@@ -168,6 +168,7 @@ function setupEventListeners() {
 
 function renderCases() {
   const tbody = document.getElementById('casesBody');
+  const mobileContainer = document.getElementById('mobileCardsContainer');
   const allCases = Storage.loadCases();
   const filter = document.getElementById('search').value.toLowerCase();
   const sortMode = document.getElementById('sortMode').value;
@@ -255,12 +256,120 @@ function renderCases() {
     cases.sort(compareByClient);
   }
 
+  // Render both table and mobile cards
   tbody.innerHTML = '';
+  mobileContainer.innerHTML = '';
 
   cases.forEach(c => {
     const row = createCaseRow(c, excludeMode);
     tbody.appendChild(row);
+    
+    const card = createMobileCard(c, excludeMode);
+    mobileContainer.appendChild(card);
   });
+}
+
+/**
+ * Create a mobile card element for a case (v2.1)
+ */
+function createMobileCard(c, excludeMode) {
+  let totalDays;
+  if (c.cocFiled && c.cocDate && c.startDate) {
+    const s = Utils.parseLocalDate(c.startDate);
+    const d = Utils.parseLocalDate(c.cocDate);
+    totalDays = Math.max(0, Utils.daysBetweenDates(s, d));
+  } else if (c.clockStopped && c.frozenTotalDays != null) {
+    totalDays = c.frozenTotalDays;
+  } else {
+    totalDays = Utils.daysBetween(c.startDate);
+  }
+
+  const defEx = Number(c.definitelyExcludedDays) || 0;
+  const argEx = Number(c.arguablyExcludedDays) || 0;
+  const simpleExcluded = Number(c.excludedDays) || 0;
+
+  let excluded = simpleExcluded;
+  if (defEx || argEx) {
+    excluded = excludeMode === 'defOnly' ? defEx : (defEx + argEx);
+  }
+
+  const chargeable = Math.max(0, totalDays - excluded);
+  const { capDays, deadlineStr } = Calculations.computeCapAndDeadline(c.chargeLevel, c.startDate);
+  const ncdCls = Utils.ncdClass(c.nextCourtDate);
+
+  const daysUntil = Calculations.daysUntilDeadline(deadlineStr);
+  let deadlineClass = '';
+  if (daysUntil !== null) {
+    if (daysUntil <= 0) deadlineClass = 'deadline-red';
+    else if (daysUntil <= 30) deadlineClass = 'deadline-yellow';
+    else deadlineClass = 'deadline-green';
+  }
+
+  const card = document.createElement('div');
+  card.className = 'case-card';
+
+  let badgeClass = '';
+  let badgeText = '';
+  if (c.warrant) {
+    badgeClass = 'warrant-bg';
+    badgeText = 'WARRANT';
+  } else if (c.closed) {
+    badgeClass = 'closed-bg';
+    badgeText = 'CLOSED';
+  } else if (c.cocFiled) {
+    badgeClass = 'ready-bg';
+    badgeText = 'READY';
+  }
+
+  card.innerHTML = `
+    <div class="case-card-header">
+      <div>
+        <div class="case-card-title">${Utils.sanitizeString(c.clientName)}</div>
+        <div class="case-card-subtitle">${Utils.sanitizeString(c.docketNumber || 'No docket #')}</div>
+      </div>
+      ${badgeText ? `<span class="case-card-badge ${badgeClass}">${badgeText}</span>` : ''}
+    </div>
+    <div class="case-card-body">
+      <div class="case-card-row">
+        <span class="case-card-label">Charge Level</span>
+        <span class="case-card-value">${getChargeLevelText(c.chargeLevel)}</span>
+      </div>
+      <div class="case-card-row">
+        <span class="case-card-label">Chargeable Days</span>
+        <span class="case-card-value">${chargeable} / ${capDays}</span>
+      </div>
+      <div class="case-card-row">
+        <span class="case-card-label">30.30 Deadline</span>
+        <span class="case-card-value ${deadlineClass}">${deadlineStr || 'N/A'}</span>
+      </div>
+      <div class="case-card-row">
+        <span class="case-card-label">Next Court Date</span>
+        <span class="case-card-value ${ncdCls}">${c.nextCourtDate ? Utils.formatDate(Utils.parseLocalDate(c.nextCourtDate)) : 'None'}</span>
+      </div>
+      ${c.courtPart ? `
+      <div class="case-card-row">
+        <span class="case-card-label">Part</span>
+        <span class="case-card-value">${Utils.sanitizeString(c.courtPart)}</span>
+      </div>
+      ` : ''}
+    </div>
+    <div class="case-card-actions">
+      <button class="secondary" onclick="openCaseModal('${c.id}')">View Details</button>
+      <button class="secondary" onclick="editCase('${c.id}')">Edit</button>
+    </div>
+  `;
+
+  return card;
+}
+
+function getChargeLevelText(level) {
+  const map = {
+    'felony': 'Felony',
+    'classA': 'Class A Misd',
+    'classB': 'Class B Misd',
+    'violation': 'Violation'
+  };
+  return map[level] || 'Unknown';
 }
 
 function createCaseRow(c, excludeMode) {
