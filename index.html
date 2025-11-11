@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; block-all-mixed-content;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; block-all-mixed-content;">
   <title>NYC Case Tracker v2.1</title>
   <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -220,11 +220,11 @@
 
       <div class="checkbox-group">
         <label>
-          <input type="checkbox" id="showWarrant">
+          <input type="checkbox" id="showWarrant" checked>
           Include warrant cases
         </label>
         <label>
-          <input type="checkbox" id="showClosed">
+          <input type="checkbox" id="showClosed" checked>
           Include closed cases
         </label>
         <label>
