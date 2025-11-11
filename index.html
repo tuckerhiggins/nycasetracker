@@ -23,6 +23,13 @@
       </div>
     </div>
 
+    <!-- Quick Actions Bar (v2.1) -->
+    <div class="quick-actions-bar">
+      <button id="emailTodayBtn" class="action-btn action-today-small">📧 Email Today's Cases</button>
+      <button id="printTodayBtn" class="action-btn action-today-small">🖨️ Print Today's Cases</button>
+      <button id="exportCalendarBtn" class="action-btn action-secondary-small">📅 Export Court Dates</button>
+    </div>
+
     <!-- Local backups + Quick 30.30 calculator -->
     <div class="backup-bar">
       <!-- Local encrypted backups -->
@@ -37,15 +44,11 @@
           </div>
         </div>
         <div class="backup-buttons">
-          <button id="emailTodayBtn" class="secondary">📧 Email Today's Cases</button>
-          <button id="printTodayBtn" class="secondary">🖨️ Print Today's Cases</button>
           <button id="exportBtn" class="secondary">Export Encrypted Backup</button>
-          <button id="importBtn" class="secondary">Import Encrypted Backup (replace)</button>
-          <button id="importMergeBtn" class="secondary">Import & Merge Encrypted Backup</button>
-          <button id="exportCalendarBtn" class="secondary">Export Court Dates to Calendar</button>
-          <button id="clearCasesBtn" class="danger">Clear all cases on this device</button>
+          <button id="importBtn" class="secondary">Import Encrypted Backup</button>
+          <button id="importMergeBtn" class="secondary">Import & Merge</button>
+          <button id="clearCasesBtn" class="danger">⚠️ Clear All Cases</button>
           <input id="importFile" type="file" accept=".txt,.json" style="display:none;">
-          <input id="importMergeFile" type="file" accept=".txt,.json" style="display:none;">
         </div>
         <div class="small-text" id="backupStatus"></div>
       </div>
@@ -156,17 +159,16 @@
             <div class="small-text">
               For quick use, just put the total excludable days here. Advanced windows will auto-fill this.
             </div>
-            <button type="button" class="secondary small-link" id="advancedMainToggle" style="margin-top:0.4rem;">
-              Advanced excludable…
-            </button>
           </div>
 
           <div class="field" id="advancedMainContainer" style="display:none;">
             <input id="definitelyExcludedDays" type="hidden" value="0">
             <input id="arguablyExcludedDays" type="hidden" value="0">
           </div>
+        </div>
 
-          <div class="field" style="align-self:flex-end;">
+        <div class="form-row" style="align-items: center;">
+          <div class="field">
             <label>
               <input type="checkbox" id="clockStopped">
               Clock is currently stopped
@@ -174,7 +176,16 @@
             <div class="small-text">
               When checked, total days are frozen as of today.
             </div>
-            <button type="submit" class="primary" style="margin-top:0.5rem;">Add / Update Case</button>
+          </div>
+
+          <div class="field">
+            <button type="button" class="secondary small-link" id="advancedMainToggle">
+              ⚙️ Advanced excludable time
+            </button>
+          </div>
+
+          <div class="field" style="display: flex; justify-content: flex-end;">
+            <button type="submit" class="primary">Quick Add Case</button>
           </div>
         </div>
 

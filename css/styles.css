@@ -417,6 +417,81 @@ tbody tr:hover {
 }
 
 /* ============================================================================
+   QUICK ACTIONS BAR (v2.1)
+   ============================================================================ */
+
+.quick-actions-bar {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.action-btn {
+  flex: 1;
+  min-width: 150px;
+  padding: 0.75rem 1.25rem;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.action-today {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.action-today:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.4);
+}
+
+.action-today-small {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.2);
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.action-today-small:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.action-secondary {
+  background: #f1f5f9;
+  color: #475569;
+  border: 2px solid #e2e8f0;
+}
+
+.action-secondary:hover {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+.action-secondary-small {
+  background: #f1f5f9;
+  color: #475569;
+  border: 2px solid #e2e8f0;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.action-secondary-small:hover {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+/* ============================================================================
    DASHBOARD HEADER (NEW)
    ============================================================================ */
 
@@ -946,6 +1021,15 @@ footer p {
 
   .mobile-cards {
     display: block;
+  }
+
+  .quick-actions-bar {
+    flex-direction: column;
+  }
+
+  .action-btn {
+    width: 100%;
+    min-width: 100%;
   }
 
   .app-container {

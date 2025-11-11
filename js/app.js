@@ -103,9 +103,11 @@ function setupEventListeners() {
   });
   document.getElementById('importFile').addEventListener('change', handleImportFile);
   document.getElementById('importMergeBtn').addEventListener('click', () => {
-    document.getElementById('importMergeFile').click();
+    // Set a flag to know this is a merge operation
+    window.importMergeMode = true;
+    document.getElementById('importFile').click();
   });
-  document.getElementById('importMergeFile').addEventListener('change', handleImportMergeFile);
+  document.getElementById('importFile').addEventListener('change', handleImportFile);
   document.getElementById('clearCasesBtn').addEventListener('click', clearAllCases);
 
   // Calendar export button (NEW)
@@ -355,7 +357,6 @@ function createMobileCard(c, excludeMode) {
     </div>
     <div class="case-card-actions">
       <button class="secondary" onclick="openCaseModal('${c.id}')">View Details</button>
-      <button class="secondary" onclick="editCase('${c.id}')">Edit</button>
     </div>
   `;
 
@@ -2112,6 +2113,9 @@ async function handleImportFile(event) {
   const file = event.target.files[0];
   if (!file) return;
 
+  const isMergeMode = window.importMergeMode || false;
+  window.importMergeMode = false; // Reset flag
+
   const password = getBackupPassword();
   if (!password) {
     event.target.value = '';
@@ -2131,9 +2135,24 @@ async function handleImportFile(event) {
       const parsed = JSON.parse(plaintext);
       const importedCases = Storage.validateAndNormalizeImportedCases(parsed);
 
-      Storage.saveCases(importedCases);
-      renderCases();
-      UI.showToast('Backup imported successfully (existing cases replaced).', 'success');
+      if (isMergeMode) {
+        // Merge mode: combine with existing cases
+        const existingCases = Storage.loadCases();
+        const existingIds = new Set(existingCases.map(c => c.id));
+        
+        // Add imported cases that don't already exist
+        const newCases = importedCases.filter(c => !existingIds.has(c.id));
+        const mergedCases = [...existingCases, ...newCases];
+        
+        Storage.saveCases(mergedCases);
+        renderCases();
+        UI.showToast(`Merged ${newCases.length} new case${newCases.length === 1 ? '' : 's'} from backup.`, 'success');
+      } else {
+        // Replace mode: overwrite existing cases
+        Storage.saveCases(importedCases);
+        renderCases();
+        UI.showToast('Backup imported successfully (existing cases replaced).', 'success');
+      }
     } catch (err) {
       console.error(err);
       UI.showToast('Could not decrypt/import backup. Check your password and file.', 'error');
