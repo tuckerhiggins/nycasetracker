@@ -37,12 +37,35 @@ export function normalizeCaseObject(raw) {
       : null;
   const cocFiled = !!raw.cocFiled;
   const cocDate = raw.cocDate || '';
+  // Legacy single contact fields (for backward compatibility)
   const clientPhone = sanitizeString(raw.clientPhone || '');
   const clientEmail = sanitizeString(raw.clientEmail || '');
   const arraignment_date = raw.arraignment_date || '';
   
   // NEW: Appearance type field
   const nextCourtAppearanceType = sanitizeString(raw.nextCourtAppearanceType || '');
+  
+  // NEW: Warrant date
+  const warrantDate = raw.warrantDate || '';
+  
+  // NEW: Enhanced contacts - multiple phones/emails with notes
+  const phones = Array.isArray(raw.phones)
+    ? raw.phones.map(p => ({
+        number: sanitizeString(p && p.number || ''),
+        note: sanitizeString(p && p.note || ''),
+        id: p && p.id ? String(p.id) : ('phone-' + Date.now() + '-' + Math.random().toString(36).slice(2))
+      }))
+    : (clientPhone ? [{ number: clientPhone, note: '', id: 'phone-legacy' }] : []);
+    
+  const emails = Array.isArray(raw.emails)
+    ? raw.emails.map(e => ({
+        address: sanitizeString(e && e.address || ''),
+        note: sanitizeString(e && e.note || ''),
+        id: e && e.id ? String(e.id) : ('email-' + Date.now() + '-' + Math.random().toString(36).slice(2))
+      }))
+    : (clientEmail ? [{ address: clientEmail, note: '', id: 'email-legacy' }] : []);
+  
+  const address = sanitizeString(raw.address || '');
 
   const noteEntries = Array.isArray(raw.noteEntries)
     ? raw.noteEntries.map(n => ({
@@ -96,6 +119,7 @@ export function normalizeCaseObject(raw) {
     assignedAda,
     noteEntries,
     warrant,
+    warrantDate,
     closed,
     clockStopped,
     frozenTotalDays,
@@ -103,6 +127,9 @@ export function normalizeCaseObject(raw) {
     cocDate,
     clientPhone,
     clientEmail,
+    phones,
+    emails,
+    address,
     arraignment_date,
     exWindows,
     todos,

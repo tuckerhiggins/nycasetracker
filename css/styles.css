@@ -1109,3 +1109,622 @@ footer p {
     width: 100%;
   }
 }
+
+/* ============================================================================
+   ENHANCED MODAL STYLES - Better UX Organization
+   ============================================================================ */
+
+/* Modal enhancements */
+.modal-enhanced {
+  max-width: 950px;
+  max-height: 92vh;
+}
+
+.modal-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.hero-left {
+  flex: 1;
+}
+
+.hero-left h2 {
+  margin: 0 0 0.5rem 0;
+}
+
+.hero-quick-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-link {
+  background: transparent;
+  border: 1px solid #d1d5db;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.action-link:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+/* Section organization */
+.modal-section {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  border-radius: 10px;
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+}
+
+.section-who {
+  background: #f0f9ff;
+  border-color: #bfdbfe;
+}
+
+.section-charges {
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+
+.section-dates {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.section-status {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.section-work {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+}
+
+.section-header {
+  margin: 0 0 1rem 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Input emphasis */
+.input-emphasized {
+  font-size: 1.1rem;
+  font-weight: 600;
+  border: 2px solid #3b82f6;
+}
+
+/* Contacts section */
+.contacts-additional {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.expand-toggle {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #3b82f6;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: color 0.2s;
+}
+
+.expand-toggle:hover {
+  color: #2563eb;
+}
+
+.contact-count {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.additional-contacts-content {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.contact-subsection {
+  margin-bottom: 1.5rem;
+}
+
+.contact-subsection:last-child {
+  margin-bottom: 0;
+}
+
+.subsection-header-small {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.add-link {
+  background: transparent;
+  border: 1px dashed #9ca3af;
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #6b7280;
+  transition: all 0.2s;
+}
+
+.add-link:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: #eff6ff;
+}
+
+.contact-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.contact-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.contact-item-main {
+  flex: 1;
+}
+
+.contact-item-value {
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.25rem;
+}
+
+.contact-item-note {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.contact-item-remove {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 1.1rem;
+  transition: background 0.2s;
+}
+
+.contact-item-remove:hover {
+  background: #fee2e2;
+}
+
+/* Charges visual display */
+.charges-visual-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.charge-visual-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 2px solid #e5e7eb;
+  transition: border-color 0.2s;
+}
+
+.charge-visual-item:hover {
+  border-color: #d1d5db;
+}
+
+.charge-visual-item.charge-primary {
+  border-color: #fbbf24;
+  background: #fffbeb;
+}
+
+.charge-content {
+  flex: 1;
+}
+
+.charge-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.charge-star {
+  color: #fbbf24;
+  font-size: 1.2rem;
+}
+
+.charge-details {
+  font-size: 0.85rem;
+  color: #6b7280;
+  display: flex;
+  gap: 1rem;
+}
+
+.charge-statute {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+}
+
+.charge-class-badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-felony {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.badge-classa {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.badge-classb {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge-violation {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.charge-remove-btn {
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #ef4444;
+  transition: all 0.2s;
+}
+
+.charge-remove-btn:hover {
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+
+.add-charge-btn {
+  width: 100%;
+  padding: 0.75rem;
+  background: white;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6b7280;
+  transition: all 0.2s;
+}
+
+.add-charge-btn:hover {
+  border-color: #fbbf24;
+  color: #92400e;
+  background: #fffbeb;
+}
+
+.charge-input-form {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* Court date grouping */
+.court-date-group {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.group-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.form-row-tight {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.form-row-tight .field {
+  flex: 1;
+  min-width: 150px;
+}
+
+/* Deadline calculation display */
+.deadline-calculation {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 2px solid #bbf7d0;
+}
+
+.calc-display {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.calc-label {
+  font-weight: 600;
+  color: #374151;
+}
+
+.calc-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #166534;
+}
+
+.excludable-summary {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #374151;
+}
+
+.excludable-summary div {
+  font-weight: 600;
+}
+
+.excludable-summary span {
+  color: #166534;
+}
+
+/* Status grid with color-coded badges */
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  background: white;
+  border-radius: 8px;
+  border: 2px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.status-badge:hover {
+  border-color: #d1d5db;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.status-badge input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.status-badge input[type="checkbox"]:checked ~ .status-icon {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.status-icon {
+  font-size: 1.2rem;
+  opacity: 0.3;
+  transition: all 0.2s;
+}
+
+.status-text {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.status-warrant input:checked ~ .status-icon {
+  filter: brightness(1.2);
+}
+
+.status-stopped input:checked ~ .status-icon {
+  filter: brightness(1.2);
+}
+
+.status-ready input:checked ~ .status-icon {
+  filter: brightness(1.2);
+}
+
+.status-closed input:checked ~ .status-icon {
+  filter: brightness(1.2);
+}
+
+/* Work section */
+.work-subsection {
+  margin-bottom: 1.5rem;
+}
+
+.work-subsection:last-child {
+  margin-bottom: 0;
+}
+
+.todo-create-form {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #ddd6fe;
+}
+
+.todos-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.todos-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.todos-list li.todo-completed {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+.notes-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.notes-list li {
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: white;
+  border-left: 3px solid #8b5cf6;
+  border-radius: 4px;
+}
+
+/* Field helpers */
+.field-help {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* Modal footer */
+.modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 2px solid #e5e7eb;
+}
+
+.footer-right {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .modal-enhanced {
+    max-width: 95vw;
+    max-height: 95vh;
+  }
+  
+  .modal-hero {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-row-tight {
+    flex-direction: column;
+  }
+  
+  .modal-footer {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .footer-right {
+    width: 100%;
+  }
+  
+  .footer-right button {
+    flex: 1;
+  }
+}
+

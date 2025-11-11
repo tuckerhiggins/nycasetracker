@@ -284,13 +284,20 @@
     </div>
   </div>
 
-  <!-- Case details modal -->
+  <!-- Case details modal - IMPROVED UX -->
   <div id="caseModal" class="modal-overlay">
-    <div class="modal">
+    <div class="modal modal-enhanced">
       <div class="modal-body">
-        <!-- Hero section (NEW) -->
+        <!-- HEADER: Hero section with key metrics -->
         <div class="modal-hero">
-          <h2 id="modalTitle">Case Details</h2>
+          <div class="hero-left">
+            <h2 id="modalTitle">Case Details</h2>
+            <div class="hero-quick-actions">
+              <button class="action-link" id="quickEmailCase" title="Email case details">📧</button>
+              <button class="action-link" id="quickPrintCase" title="Print case">🖨️</button>
+              <button class="action-link" id="quickCopyDocket" title="Copy docket">📋</button>
+            </div>
+          </div>
           <div class="modal-key-info">
             <div class="info-card deadline-card">
               <div class="info-label">30.30 Deadline</div>
@@ -305,247 +312,309 @@
           </div>
         </div>
 
-        <button class="modal-close" id="closeCaseModalBtn" style="position:absolute;top:1rem;right:1rem;">×</button>
+        <button class="modal-close" id="closeCaseModalBtn">×</button>
 
-        <div class="form-row">
-          <div class="field">
-            <label for="modalClientName">Client / Case Name</label>
-            <input id="modalClientName">
-          </div>
-          <div class="field">
-            <label for="modalDocketNumber">Docket / Indictment #</label>
-            <input id="modalDocketNumber">
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="field">
-            <label for="modalClientPhone">Client phone</label>
-            <input id="modalClientPhone" type="tel" placeholder="(555) 123-4567">
-          </div>
-          <div class="field">
-            <label for="modalClientEmail">Client email</label>
-            <input id="modalClientEmail" type="email" placeholder="client@example.com">
-          </div>
-        </div>
-
-        <!-- To-do creation + list -->
-        <div class="form-row" style="margin-bottom:0.5rem;">
-          <button type="button" class="todo-cta small-link" id="modalTodoCreateBtn">
-            + Create to-do for this case
-          </button>
-        </div>
-        <div id="modalTodoCreateRow" style="display:none; margin-bottom:0.75rem;">
+        <!-- SECTION 1: 👤 WHO (Identity & Contact) -->
+        <section class="modal-section section-who">
+          <h3 class="section-header">👤 WHO - Identity & Contact</h3>
+          
           <div class="form-row">
             <div class="field">
-              <label for="modalTodoDescription">To-do description</label>
-              <input id="modalTodoDescription" placeholder="e.g., Draft suppression motion">
+              <label for="modalClientName">Client / Case Name</label>
+              <input id="modalClientName" class="input-emphasized">
             </div>
             <div class="field">
-              <label for="modalTodoDeadline">Deadline</label>
-              <input id="modalTodoDeadline" type="date">
+              <label for="modalDocketNumber">Docket / Indictment #</label>
+              <input id="modalDocketNumber">
             </div>
           </div>
-          <button type="button" class="primary small-link" id="addTodoBtn">
-            Add to-do
-          </button>
-        </div>
-        <div class="modal-section-title">To-dos</div>
-        <ul id="modalTodoList" class="notes-list"></ul>
 
-        <!-- Charges section (NEW) -->
-        <div class="modal-section-title" style="margin-top:1rem;">Charges</div>
-        <div id="chargesList" class="charges-list"></div>
-        <button type="button" class="secondary small-link" id="addChargeBtn" style="margin-top:0.5rem;">
-          + Add Charge
-        </button>
-
-        <div id="chargeInputRow" style="display:none; margin-top:0.5rem;">
+          <!-- Primary Contact -->
           <div class="form-row">
             <div class="field">
-              <label>Charge Name</label>
-              <input id="newChargeName" placeholder="e.g., Robbery in the Second Degree">
+              <label for="modalClientPhone">Primary Phone</label>
+              <input id="modalClientPhone" type="tel" placeholder="(555) 123-4567">
             </div>
             <div class="field">
-              <label>Statute</label>
-              <input id="newChargeStatute" placeholder="e.g., PL § 160.10(1)">
+              <label for="modalClientEmail">Primary Email</label>
+              <input id="modalClientEmail" type="email" placeholder="client@example.com">
             </div>
+          </div>
+
+          <!-- Additional Contacts (Collapsible) -->
+          <div class="contacts-additional">
+            <button type="button" class="expand-toggle" id="expandContactsBtn">
+              <span id="contactsToggleIcon">▶</span> Additional contacts
+              <span class="contact-count" id="additionalContactCount"></span>
+            </button>
+            
+            <div id="additionalContactsSection" class="additional-contacts-content" style="display:none;">
+              <!-- Phones -->
+              <div class="contact-subsection">
+                <div class="subsection-header-small">
+                  <span>📞 Phone Numbers</span>
+                  <button type="button" class="add-link" id="addPhoneBtn">+ Add</button>
+                </div>
+                <div id="phonesList" class="contact-items-list"></div>
+              </div>
+
+              <!-- Emails -->
+              <div class="contact-subsection">
+                <div class="subsection-header-small">
+                  <span>📧 Email Addresses</span>
+                  <button type="button" class="add-link" id="addEmailBtn">+ Add</button>
+                </div>
+                <div id="emailsList" class="contact-items-list"></div>
+              </div>
+
+              <!-- Address -->
+              <div class="field" style="margin-top:0.75rem;">
+                <label for="modalAddress">Physical Address</label>
+                <textarea id="modalAddress" rows="2" placeholder="Street, apartment, city, state, zip"></textarea>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 2: ⚖️ WHAT (The Charges) -->
+        <section class="modal-section section-charges">
+          <h3 class="section-header">⚖️ WHAT - Charges</h3>
+          
+          <div id="chargesList" class="charges-visual-list"></div>
+          <button type="button" class="add-charge-btn" id="addChargeBtn">
+            + Add Charge
+          </button>
+
+          <div id="chargeInputRow" class="charge-input-form" style="display:none;">
+            <div class="form-row">
+              <div class="field">
+                <label>Charge Name</label>
+                <input id="newChargeName" placeholder="e.g., Assault 2nd Degree">
+              </div>
+              <div class="field">
+                <label>Statute</label>
+                <input id="newChargeStatute" placeholder="e.g., PL § 120.05">
+              </div>
+              <div class="field">
+                <label>Class</label>
+                <select id="newChargeClass">
+                  <option value="felony">Felony</option>
+                  <option value="classA">Class A Misd</option>
+                  <option value="classB">Class B Misd</option>
+                  <option value="violation">Violation</option>
+                </select>
+              </div>
+            </div>
+            <label class="checkbox-label">
+              <input type="checkbox" id="newChargePrimary">
+              <span>⭐ Primary/Top Charge (determines 30.30 cap)</span>
+            </label>
+            <div class="form-actions">
+              <button class="primary small-link" id="saveChargeBtn">Add Charge</button>
+              <button class="secondary small-link" id="cancelChargeBtn">Cancel</button>
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-top:1rem;">
             <div class="field">
-              <label>Class</label>
-              <select id="newChargeClass">
-                <option value="felony">Felony</option>
-                <option value="classA">Class A Misd</option>
-                <option value="classB">Class B Misd</option>
-                <option value="violation">Violation</option>
+              <label for="modalChargeLevel">Top Charge Level (for 30.30 cap)</label>
+              <select id="modalChargeLevel">
+                <option value="">Select...</option>
+                <option value="felony">Felony (6 mo)</option>
+                <option value="classA">Class A Misd (90 days)</option>
+                <option value="classB">Class B Misd (60 days)</option>
+                <option value="violation">Violation (30 days)</option>
               </select>
             </div>
           </div>
-          <label style="font-size:0.85rem;">
-            <input type="checkbox" id="newChargePrimary">
-            Primary/Top Charge (determines 30.30 cap)
-          </label>
-          <div style="margin-top:0.5rem;">
-            <button class="primary small-link" id="saveChargeBtn">Add</button>
-            <button class="secondary small-link" id="cancelChargeBtn">Cancel</button>
-          </div>
-        </div>
+        </section>
 
-        <div class="form-row" style="margin-top:0.75rem;">
-          <div class="field">
-            <label for="modalChargeLevel">Top Charge Level</label>
-            <select id="modalChargeLevel">
-              <option value="">Select...</option>
-              <option value="felony">Felony</option>
-              <option value="classA">Class A Misd</option>
-              <option value="classB">Class B Misd</option>
-              <option value="violation">Violation</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="modalStartDate">Clock Start Date</label>
-            <input id="modalStartDate" type="date">
-            <div class="small-text" style="color:#6b7280;margin-top:0.25rem;">
-              Typically the day the accusatory instrument was filed (CPL § 1.20[17]).
-            </div>
-          </div>
-          <div class="field">
-            <label for="modalArraignmentDate">Arraignment Date (optional)</label>
-            <input id="modalArraignmentDate" type="date">
-          </div>
-          <div class="field">
-            <label for="modalExcludedDays">Excluded Days (simple)</label>
-            <input id="modalExcludedDays" type="number" min="0">
-          </div>
-        </div>
-
-        <!-- Always-visible 30.30 date -->
-        <div class="modal-section-title" style="margin-top:0.75rem;">30.30 Date (this case)</div>
-        <div class="small-text">
-          30.30 Date: <span id="modal3030Date"></span>
-        </div>
-
-        <div class="form-row">
-          <button type="button" class="secondary small-link" id="advancedModalToggle">
-            Advanced excludable…
-          </button>
-        </div>
-
-        <!-- Advanced excludable section in modal -->
-        <div id="advancedModalContainer" class="advanced-modal-section" style="display:none;">
+        <!-- SECTION 3: 📅 WHEN (Dates & Deadlines) -->
+        <section class="modal-section section-dates">
+          <h3 class="section-header">📅 WHEN - Dates & Deadlines</h3>
+          
           <div class="form-row">
             <div class="field">
-              <label for="modalDefExcluded">Definitely excludable days</label>
-              <input id="modalDefExcluded" type="number" min="0" readonly>
+              <label for="modalStartDate">Clock Start Date</label>
+              <input id="modalStartDate" type="date">
+              <div class="field-help">Typically when accusatory instrument was filed (CPL § 1.20[17])</div>
             </div>
             <div class="field">
-              <label for="modalArgExcluded">Arguably excludable days</label>
-              <input id="modalArgExcluded" type="number" min="0" readonly>
+              <label for="modalArraignmentDate">Arraignment Date</label>
+              <input id="modalArraignmentDate" type="date">
             </div>
           </div>
 
-          <div class="modal-section-title">Excludable calculator (this case)</div>
-          <p class="small-text">
-            Add windows of excludable time with reasons. Windows marked "Arg. excludable" will
-            be counted as arguably excludable; others count as definitely excludable. Simple excluded
-            days = definitely + arguably.
-          </p>
-          <div id="modalExRows"></div>
-          <button type="button" class="secondary small-link" id="modalExAddBtn" style="margin-top:0.3rem;">
-            + Add window
-          </button>
-          <div class="small-text" style="margin-top:0.5rem;">
-            Definitely excludable from windows: <span id="modalExDefTotal">0</span>
-          </div>
-          <div class="small-text">
-            Arguably excludable from windows: <span id="modalExArgTotal">0</span>
-          </div>
-          <div class="small-text">
-            Total excludable (simple): <span id="modalExTotal">0</span>
+          <!-- Court Date Info -->
+          <div class="court-date-group">
+            <label class="group-label">Next Court Appearance</label>
+            <div class="form-row-tight">
+              <div class="field">
+                <input id="modalNcd" type="date" placeholder="Date">
+              </div>
+              <div class="field">
+                <input id="modalAppearanceType" list="appearanceTypes" placeholder="On for...">
+              </div>
+              <div class="field">
+                <input id="modalPart" placeholder="Part">
+              </div>
+              <div class="field">
+                <input id="modalAda" placeholder="ADA">
+              </div>
+            </div>
           </div>
 
-          <div class="small-text" style="margin-top:0.75rem;">
-            <label>
+          <!-- 30.30 Calculation -->
+          <div class="deadline-calculation">
+            <div class="calc-display">
+              <span class="calc-label">30.30 Deadline:</span>
+              <span id="modal3030Date" class="calc-value">Calculating...</span>
+            </div>
+            <div class="form-row" style="margin-top:0.5rem;">
+              <div class="field">
+                <label for="modalExcludedDays">Excluded Days (simple total)</label>
+                <input id="modalExcludedDays" type="number" min="0">
+              </div>
+              <div class="field" style="align-self:flex-end;">
+                <button type="button" class="secondary small-link" id="advancedModalToggle">
+                  ⚙️ Advanced excludable time...
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Advanced Excludable (Collapsible) -->
+          <div id="advancedModalContainer" class="advanced-modal-section" style="display:none;">
+            <div class="form-row">
+              <div class="field">
+                <label for="modalDefExcluded">Definitely excludable</label>
+                <input id="modalDefExcluded" type="number" min="0" readonly>
+              </div>
+              <div class="field">
+                <label for="modalArgExcluded">Arguably excludable</label>
+                <input id="modalArgExcluded" type="number" min="0" readonly>
+              </div>
+            </div>
+
+            <p class="field-help">
+              Add windows of excludable time with reasons. Mark "Arg. excludable" for disputed periods.
+            </p>
+            <div id="modalExRows"></div>
+            <button type="button" class="secondary small-link" id="modalExAddBtn" style="margin-top:0.5rem;">
+              + Add window
+            </button>
+            <div class="excludable-summary">
+              <div>Definitely: <span id="modalExDefTotal">0</span> days</div>
+              <div>Arguably: <span id="modalExArgTotal">0</span> days</div>
+              <div>Total: <span id="modalExTotal">0</span> days</div>
+            </div>
+
+            <label class="checkbox-label" style="margin-top:0.5rem;">
               <input type="checkbox" id="modalIncludeArg" checked>
-              Include arguably excludable days in 30.30 Date
+              <span>Include arguably excludable days in 30.30 date</span>
             </label>
           </div>
-        </div>
+        </section>
 
-        <div class="form-row" style="margin-top:1rem;">
-          <div class="field">
-            <label for="modalNcd">Next Court Date (NCD)</label>
-            <input id="modalNcd" type="date">
-          </div>
-          <div class="field">
-            <label for="modalAppearanceType">Next appearance is on for</label>
-            <input id="modalAppearanceType" list="appearanceTypes" placeholder="e.g., Supporting Depositions">
-          </div>
-          <div class="field">
-            <label for="modalPart">Part</label>
-            <input id="modalPart" placeholder="e.g., AP3, Part 41">
-          </div>
-          <div class="field">
-            <label for="modalAda">Assigned ADA</label>
-            <input id="modalAda" placeholder="ADA Name">
-          </div>
-        </div>
-
-        <div class="checkbox-inline">
-          <label>
-            <input type="checkbox" id="modalClockStopped">
-            Clock currently stopped
-          </label>
-          <label>
-            <input type="checkbox" id="modalWarrant">
-            Warrant
-          </label>
-          <label>
-            <input type="checkbox" id="modalClosed">
-            Closed
-          </label>
-        </div>
-
-        <div class="form-row" style="margin-top:0.75rem;">
-          <div class="field">
-            <label>
+        <!-- SECTION 4: 🚨 STATUS (What's Happening) -->
+        <section class="modal-section section-status">
+          <h3 class="section-header">🚨 STATUS - Case Flags</h3>
+          
+          <div class="status-grid">
+            <label class="status-badge status-warrant">
+              <input type="checkbox" id="modalWarrant">
+              <span class="status-icon">🔴</span>
+              <span class="status-text">Warrant</span>
+            </label>
+            <label class="status-badge status-stopped">
+              <input type="checkbox" id="modalClockStopped">
+              <span class="status-icon">🟡</span>
+              <span class="status-text">Clock Stopped</span>
+            </label>
+            <label class="status-badge status-ready">
               <input type="checkbox" id="modalCocFiled">
-              COC filed
+              <span class="status-icon">🟢</span>
+              <span class="status-text">COC Filed (Ready)</span>
             </label>
-            <div class="small-text">
-              When a COC is filed, the clock stops as of that date.
-            </div>
+            <label class="status-badge status-closed">
+              <input type="checkbox" id="modalClosed">
+              <span class="status-icon">⚫</span>
+              <span class="status-text">Case Closed</span>
+            </label>
           </div>
-          <div class="field">
-            <label for="modalCocDate">COC date</label>
-            <input id="modalCocDate" type="date">
-          </div>
-        </div>
 
-        <div>
-          <div class="modal-section-title">Notes</div>
-          <ul id="modalNotesList" class="notes-list"></ul>
-          <div class="form-row">
-            <div class="field">
-              <label for="modalNoteDate">Note Date</label>
-              <input id="modalNoteDate" type="date">
+          <div class="form-row" style="margin-top:0.75rem;">
+            <div class="field" id="warrantDateField" style="display:none;">
+              <label for="modalWarrantDate">Warrant Issued Date</label>
+              <input id="modalWarrantDate" type="date">
             </div>
-            <div class="field">
-              <label for="modalNoteText">Note Text</label>
-              <textarea id="modalNoteText" rows="2" placeholder="e.g., People served discovery; defense asked for adjournment..."></textarea>
+            <div class="field" id="cocDateField" style="display:none;">
+              <label for="modalCocDate">COC Filed Date</label>
+              <input id="modalCocDate" type="date">
+              <div class="field-help">Clock stops as of this date</div>
             </div>
           </div>
-          <button class="secondary" id="addNoteBtn">Add Note</button>
-        </div>
+        </section>
 
-        <div style="margin-top: 1rem; display:flex; justify-content: space-between; gap:0.5rem; flex-wrap:wrap;">
-          <button class="secondary" type="button" id="exportCaseBtn">Export this case</button>
-          <button class="primary" type="button" id="saveChangesBtn">Save changes</button>
-          <button class="danger" type="button" id="deleteCaseBtn">Delete case</button>
+        <!-- SECTION 5: 📝 WORK (To-Dos & Notes) -->
+        <section class="modal-section section-work">
+          <h3 class="section-header">📝 WORK - To-Dos & Notes</h3>
+          
+          <!-- To-Dos -->
+          <div class="work-subsection">
+            <div class="subsection-header-small">
+              <span>✓ To-Dos</span>
+              <button type="button" class="todo-cta small-link" id="modalTodoCreateBtn">
+                + Create to-do
+              </button>
+            </div>
+
+            <div id="modalTodoCreateRow" class="todo-create-form" style="display:none;">
+              <div class="form-row">
+                <div class="field" style="flex:2;">
+                  <input id="modalTodoDescription" placeholder="What needs to be done?">
+                </div>
+                <div class="field">
+                  <input id="modalTodoDeadline" type="date">
+                </div>
+                <button type="button" class="primary small-link" id="addTodoBtn">Add</button>
+              </div>
+            </div>
+
+            <ul id="modalTodoList" class="todos-list"></ul>
+          </div>
+
+          <!-- Notes -->
+          <div class="work-subsection">
+            <div class="subsection-header-small">
+              <span>📄 Case Notes</span>
+            </div>
+            
+            <ul id="modalNotesList" class="notes-list"></ul>
+            
+            <div class="form-row" style="margin-top:0.75rem;">
+              <div class="field">
+                <input id="modalNoteDate" type="date">
+              </div>
+              <div class="field" style="flex:2;">
+                <textarea id="modalNoteText" rows="2" placeholder="Add a note about this case..."></textarea>
+              </div>
+              <button class="secondary small-link" id="addNoteBtn">Add Note</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- FOOTER: Actions -->
+        <div class="modal-footer">
+          <button class="secondary" type="button" id="exportCaseBtn">Export Case</button>
+          <div class="footer-right">
+            <button class="primary" type="button" id="saveChangesBtn">Save Changes</button>
+            <button class="danger" type="button" id="deleteCaseBtn">Delete Case</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
-
   <!-- Advanced excludable modal for main form -->
   <div id="advExModal" class="modal-overlay">
     <div class="modal">

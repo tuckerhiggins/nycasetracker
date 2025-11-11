@@ -174,6 +174,43 @@ function setupEventListeners() {
   });
   document.getElementById('quickChargeLevel').addEventListener('change', updateQuickDeadline);
   document.getElementById('quickStartDate').addEventListener('change', updateQuickDeadline);
+  
+  // NEW: Enhanced contact management
+  const addPhoneBtn = document.getElementById('addPhoneBtn');
+  if (addPhoneBtn) addPhoneBtn.addEventListener('click', addPhoneToCurrentCase);
+  
+  const addEmailBtn = document.getElementById('addEmailBtn');
+  if (addEmailBtn) addEmailBtn.addEventListener('click', addEmailToCurrentCase);
+  
+  const expandContactsBtn = document.getElementById('expandContactsBtn');
+  if (expandContactsBtn) expandContactsBtn.addEventListener('click', toggleAdditionalContacts);
+  
+  // NEW: Quick actions in modal
+  const quickEmailBtn = document.getElementById('quickEmailCase');
+  if (quickEmailBtn) quickEmailBtn.addEventListener('click', quickEmailCase);
+  
+  const quickPrintBtn = document.getElementById('quickPrintCase');
+  if (quickPrintBtn) quickPrintBtn.addEventListener('click', quickPrintCase);
+  
+  const quickCopyBtn = document.getElementById('quickCopyDocket');
+  if (quickCopyBtn) quickCopyBtn.addEventListener('click', quickCopyDocket);
+  
+  // NEW: Conditional field visibility
+  const modalWarrantCheck = document.getElementById('modalWarrant');
+  if (modalWarrantCheck) {
+    modalWarrantCheck.addEventListener('change', (e) => {
+      const field = document.getElementById('warrantDateField');
+      if (field) field.style.display = e.target.checked ? 'block' : 'none';
+    });
+  }
+  
+  const modalCocCheck = document.getElementById('modalCocFiled');
+  if (modalCocCheck) {
+    modalCocCheck.addEventListener('change', (e) => {
+      const field = document.getElementById('cocDateField');
+      if (field) field.style.display = e.target.checked ? 'block' : 'none';
+    });
+  }
 }
 
 // ============================================================================
@@ -1032,6 +1069,23 @@ function openCaseModal(id) {
   document.getElementById('modalCocFiled').checked = !!c.cocFiled;
   document.getElementById('modalCocDate').value = c.cocDate || '';
   document.getElementById('modalIncludeArg').checked = true;
+  
+  // NEW: Enhanced contact fields
+  const addressField = document.getElementById('modalAddress');
+  if (addressField) addressField.value = c.address || '';
+  
+  const warrantDateField = document.getElementById('modalWarrantDate');
+  if (warrantDateField) {
+    warrantDateField.value = c.warrantDate || '';
+    document.getElementById('warrantDateField').style.display = c.warrant ? 'block' : 'none';
+  }
+  
+  document.getElementById('cocDateField').style.display = c.cocFiled ? 'block' : 'none';
+  
+  // Render enhanced contacts
+  renderModalPhones(c.phones || []);
+  renderModalEmails(c.emails || []);
+  updateAdditionalContactCount();
 
   // Clear note/todo inputs
   document.getElementById('modalNoteDate').value = '';
@@ -1157,6 +1211,19 @@ function saveModalChanges() {
   c.nextCourtAppearanceType = Utils.sanitizeString(document.getElementById('modalAppearanceType').value.trim());
   c.courtPart = Utils.sanitizeString(document.getElementById('modalPart').value.trim());
   c.assignedAda = Utils.sanitizeString(document.getElementById('modalAda').value.trim());
+  
+  // NEW: Save enhanced contact fields
+  const addressField = document.getElementById('modalAddress');
+  if (addressField) {
+    c.address = Utils.sanitizeString(addressField.value.trim());
+  }
+  
+  const warrantDateField = document.getElementById('modalWarrantDate');
+  if (warrantDateField) {
+    c.warrantDate = warrantDateField.value;
+  }
+  
+  // phones and emails are already saved via their add/delete functions
 
   c.exWindows = collectModalExWindows();
 
@@ -1516,6 +1583,9 @@ function toggleTodoCompleted(todoIndex, completed) {
 // ============================================================================
 
 function renderChargesList(charges) {
+  // Use the enhanced visual version
+  renderModalChargesEnhanced(charges);
+}
   const container = document.getElementById('chargesList');
   if (!container) return;
 
@@ -2462,6 +2532,407 @@ function printTodaysCases() {
 }
 
 // ============================================================================
+// ============================================================================
+// ENHANCED CONTACT MANAGEMENT
+// Add these functions before the "GLOBAL WINDOW FUNCTIONS" section in app.js
+// ============================================================================
+
+/**
+ * Render phone numbers in modal
+ */
+function renderModalPhones(phones) {
+  const list = document.getElementById('phonesList');
+  if (!list) return;
+  
+  list.innerHTML = '';
+  
+  if (!phones || phones.length === 0) {
+    list.innerHTML = '<div class="field-help" style="text-align:center;padding:1rem;">No additional phones yet</div>';
+    return;
+  }
+  
+  phones.forEach((phone, idx) => {
+    const item = document.createElement('div');
+    item.className = 'contact-item';
+    
+    const main = document.createElement('div');
+    main.className = 'contact-item-main';
+    
+    const value = document.createElement('div');
+    value.className = 'contact-item-value';
+    value.textContent = phone.number || '(No number)';
+    main.appendChild(value);
+    
+    if (phone.note) {
+      const note = document.createElement('div');
+      note.className = 'contact-item-note';
+      note.textContent = phone.note;
+      main.appendChild(note);
+    }
+    
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'contact-item-remove';
+    removeBtn.textContent = '×';
+    removeBtn.title = 'Remove';
+    removeBtn.addEventListener('click', () => deletePhoneFromCurrentCase(idx));
+    
+    item.appendChild(main);
+    item.appendChild(removeBtn);
+    list.appendChild(item);
+  });
+  
+  updateAdditionalContactCount();
+}
+
+/**
+ * Render emails in modal
+ */
+function renderModalEmails(emails) {
+  const list = document.getElementById('emailsList');
+  if (!list) return;
+  
+  list.innerHTML = '';
+  
+  if (!emails || emails.length === 0) {
+    list.innerHTML = '<div class="field-help" style="text-align:center;padding:1rem;">No additional emails yet</div>';
+    return;
+  }
+  
+  emails.forEach((email, idx) => {
+    const item = document.createElement('div');
+    item.className = 'contact-item';
+    
+    const main = document.createElement('div');
+    main.className = 'contact-item-main';
+    
+    const value = document.createElement('div');
+    value.className = 'contact-item-value';
+    value.textContent = email.address || '(No address)';
+    main.appendChild(value);
+    
+    if (email.note) {
+      const note = document.createElement('div');
+      note.className = 'contact-item-note';
+      note.textContent = email.note;
+      main.appendChild(note);
+    }
+    
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'contact-item-remove';
+    removeBtn.textContent = '×';
+    removeBtn.title = 'Remove';
+    removeBtn.addEventListener('click', () => deleteEmailFromCurrentCase(idx));
+    
+    item.appendChild(main);
+    item.appendChild(removeBtn);
+    list.appendChild(item);
+  });
+  
+  updateAdditionalContactCount();
+}
+
+/**
+ * Update the additional contact count badge
+ */
+function updateAdditionalContactCount() {
+  const cases = Storage.loadCases();
+  const c = cases.find(c => c.id === currentModalCaseId);
+  if (!c) return;
+  
+  const phoneCount = (c.phones && c.phones.length) || 0;
+  const emailCount = (c.emails && c.emails.length) || 0;
+  const hasAddress = !!(c.address && c.address.trim());
+  
+  const total = phoneCount + emailCount + (hasAddress ? 1 : 0);
+  
+  const badge = document.getElementById('additionalContactCount');
+  if (badge) {
+    if (total > 0) {
+      badge.textContent = `(${total})`;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+}
+
+/**
+ * Add phone to current case
+ */
+function addPhoneToCurrentCase() {
+  if (!currentModalCaseId) return;
+  
+  const number = prompt('Enter phone number:');
+  if (!number || !number.trim()) return;
+  
+  const note = prompt('Add a note (optional):\ne.g., "Mother\'s phone - call after 6pm" or "Phone disconnected"') || '';
+  
+  const cases = Storage.loadCases();
+  const idx = cases.findIndex(c => c.id === currentModalCaseId);
+  if (idx === -1) return;
+  
+  if (!Array.isArray(cases[idx].phones)) {
+    cases[idx].phones = [];
+  }
+  
+  cases[idx].phones.push({
+    id: 'phone-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+    number: Utils.sanitizeString(number.trim()),
+    note: Utils.sanitizeString(note.trim())
+  });
+  
+  Storage.saveCases(cases);
+  renderModalPhones(cases[idx].phones);
+  UI.showToast('Phone added', 'success');
+}
+
+/**
+ * Delete phone from current case
+ */
+function deletePhoneFromCurrentCase(phoneIndex) {
+  if (!currentModalCaseId) return;
+  if (!confirm('Remove this phone number?')) return;
+  
+  const cases = Storage.loadCases();
+  const idx = cases.findIndex(c => c.id === currentModalCaseId);
+  if (idx === -1) return;
+  
+  if (Array.isArray(cases[idx].phones)) {
+    cases[idx].phones.splice(phoneIndex, 1);
+    Storage.saveCases(cases);
+    renderModalPhones(cases[idx].phones);
+    UI.showToast('Phone removed', 'info');
+  }
+}
+
+/**
+ * Add email to current case
+ */
+function addEmailToCurrentCase() {
+  if (!currentModalCaseId) return;
+  
+  const address = prompt('Enter email address:');
+  if (!address || !address.trim()) return;
+  
+  const note = prompt('Add a note (optional):\ne.g., "Work email" or "Prefers email contact"') || '';
+  
+  const cases = Storage.loadCases();
+  const idx = cases.findIndex(c => c.id === currentModalCaseId);
+  if (idx === -1) return;
+  
+  if (!Array.isArray(cases[idx].emails)) {
+    cases[idx].emails = [];
+  }
+  
+  cases[idx].emails.push({
+    id: 'email-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+    address: Utils.sanitizeString(address.trim()),
+    note: Utils.sanitizeString(note.trim())
+  });
+  
+  Storage.saveCases(cases);
+  renderModalEmails(cases[idx].emails);
+  UI.showToast('Email added', 'success');
+}
+
+/**
+ * Delete email from current case
+ */
+function deleteEmailFromCurrentCase(emailIndex) {
+  if (!currentModalCaseId) return;
+  if (!confirm('Remove this email address?')) return;
+  
+  const cases = Storage.loadCases();
+  const idx = cases.findIndex(c => c.id === currentModalCaseId);
+  if (idx === -1) return;
+  
+  if (Array.isArray(cases[idx].emails)) {
+    cases[idx].emails.splice(emailIndex, 1);
+    Storage.saveCases(cases);
+    renderModalEmails(cases[idx].emails);
+    UI.showToast('Email removed', 'info');
+  }
+}
+
+/**
+ * Toggle additional contacts section
+ */
+function toggleAdditionalContacts() {
+  const section = document.getElementById('additionalContactsSection');
+  const icon = document.getElementById('contactsToggleIcon');
+  
+  if (!section || !icon) return;
+  
+  if (section.style.display === 'none') {
+    section.style.display = 'block';
+    icon.textContent = '▼';
+  } else {
+    section.style.display = 'none';
+    icon.textContent = '▶';
+  }
+}
+
+/**
+ * Enhanced renderModalCharges with visual design
+ */
+function renderModalChargesEnhanced(charges) {
+  const list = document.getElementById('chargesList');
+  if (!list) return;
+  
+  list.innerHTML = '';
+  
+  if (!charges || charges.length === 0) {
+    list.innerHTML = '<div class="field-help" style="text-align:center;padding:1.5rem;">No charges added yet. Add charges to track them separately.</div>';
+    return;
+  }
+  
+  charges.forEach((charge, idx) => {
+    const item = document.createElement('div');
+    item.className = 'charge-visual-item';
+    if (charge.isPrimaryCharge) {
+      item.classList.add('charge-primary');
+    }
+    
+    const content = document.createElement('div');
+    content.className = 'charge-content';
+    
+    const name = document.createElement('div');
+    name.className = 'charge-name';
+    if (charge.isPrimaryCharge) {
+      const star = document.createElement('span');
+      star.className = 'charge-star';
+      star.textContent = '⭐';
+      name.appendChild(star);
+    }
+    const nameText = document.createTextNode(charge.name || 'Unnamed Charge');
+    name.appendChild(nameText);
+    content.appendChild(name);
+    
+    const details = document.createElement('div');
+    details.className = 'charge-details';
+    
+    if (charge.statute) {
+      const statute = document.createElement('span');
+      statute.className = 'charge-statute';
+      statute.textContent = charge.statute;
+      details.appendChild(statute);
+    }
+    
+    if (charge.class) {
+      const classBadge = document.createElement('span');
+      classBadge.className = 'charge-class-badge';
+      
+      const classMap = {
+        felony: { label: 'Felony', className: 'badge-felony' },
+        classA: { label: 'Class A Misd', className: 'badge-classa' },
+        classB: { label: 'Class B Misd', className: 'badge-classb' },
+        violation: { label: 'Violation', className: 'badge-violation' }
+      };
+      
+      const classInfo = classMap[charge.class] || { label: charge.class, className: '' };
+      classBadge.textContent = classInfo.label;
+      classBadge.classList.add(classInfo.className);
+      details.appendChild(classBadge);
+    }
+    
+    content.appendChild(details);
+    
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'charge-remove-btn';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', () => {
+      if (confirm('Remove this charge?')) {
+        deleteChargeFromCurrentCase(idx);
+      }
+    });
+    
+    item.appendChild(content);
+    item.appendChild(removeBtn);
+    list.appendChild(item);
+  });
+}
+
+/**
+ * Quick action: Copy docket number
+ */
+function quickCopyDocket() {
+  const docket = document.getElementById('modalDocketNumber').value;
+  if (!docket) {
+    UI.showToast('No docket number to copy', 'warning');
+    return;
+  }
+  
+  navigator.clipboard.writeText(docket).then(() => {
+    UI.showToast('Docket number copied!', 'success');
+  }).catch(() => {
+    UI.showToast('Could not copy to clipboard', 'error');
+  });
+}
+
+/**
+ * Quick action: Email case details
+ */
+function quickEmailCase() {
+  if (!currentModalCaseId) return;
+  
+  const cases = Storage.loadCases();
+  const c = cases.find(c => c.id === currentModalCaseId);
+  if (!c) return;
+  
+  const subject = encodeURIComponent(`Case: ${c.clientName} - ${c.docketNumber || 'No docket'}`);
+  const body = encodeURIComponent(
+    `Client: ${c.clientName}\n` +
+    `Docket: ${c.docketNumber || 'N/A'}\n` +
+    `Next Court Date: ${c.nextCourtDate || 'Not set'}\n` +
+    `On for: ${c.nextCourtAppearanceType || 'TBD'}\n` +
+    `Part: ${c.courtPart || 'N/A'}\n` +
+    `ADA: ${c.assignedAda || 'N/A'}\n`
+  );
+  
+  window.location.href = `mailto:?subject=${subject}&body=${body}`;
+}
+
+/**
+ * Quick action: Print case
+ */
+function quickPrintCase() {
+  if (!currentModalCaseId) return;
+  
+  const cases = Storage.loadCases();
+  const c = cases.find(c => c.id === currentModalCaseId);
+  if (!c) return;
+  
+  const printWindow = window.open('', '', 'width=800,height=600');
+  const html = `
+    <html>
+    <head>
+      <title>Case: ${c.clientName}</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 2rem; }
+        h1 { margin: 0 0 0.5rem 0; }
+        .section { margin: 1.5rem 0; }
+        .label { font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <h1>${c.clientName}</h1>
+      <div class="section">
+        <div><span class="label">Docket:</span> ${c.docketNumber || 'N/A'}</div>
+        <div><span class="label">Next Court Date:</span> ${c.nextCourtDate || 'Not set'}</div>
+        <div><span class="label">On for:</span> ${c.nextCourtAppearanceType || 'TBD'}</div>
+        <div><span class="label">Part:</span> ${c.courtPart || 'N/A'}</div>
+        <div><span class="label">ADA:</span> ${c.assignedAda || 'N/A'}</div>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 250);
+}
+
 // GLOBAL WINDOW FUNCTIONS (for onclick handlers in HTML)
 // ============================================================================
 
