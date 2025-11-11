@@ -717,6 +717,15 @@ tbody tr:hover {
   color: #374151;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  clear: both;
+}
+
+.advanced-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  clear: both;
+  width: 100%;
 }
 
 /* ============================================================================

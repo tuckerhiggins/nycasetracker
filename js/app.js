@@ -1399,9 +1399,23 @@ function toggleTodoCreationRow() {
 }
 
 function addTodoToCurrentCase() {
-  if (!currentModalCaseId) return;
+  console.log('addTodoToCurrentCase called, currentModalCaseId:', currentModalCaseId);
+  
+  if (!currentModalCaseId) {
+    console.error('No currentModalCaseId set!');
+    UI.showToast('Error: No case selected', 'error');
+    return;
+  }
+  
   const descEl = document.getElementById('modalTodoDescription');
   const deadlineEl = document.getElementById('modalTodoDeadline');
+  
+  if (!descEl || !deadlineEl) {
+    console.error('Todo input elements not found!');
+    UI.showToast('Error: Form elements not found', 'error');
+    return;
+  }
+  
   const description = descEl.value.trim();
   const deadline = deadlineEl.value;
 
@@ -1410,27 +1424,36 @@ function addTodoToCurrentCase() {
     return;
   }
 
-  const cases = Storage.loadCases();
-  const idx = cases.findIndex(c => c.id === currentModalCaseId);
-  if (idx === -1) return;
+  try {
+    const cases = Storage.loadCases();
+    const idx = cases.findIndex(c => c.id === currentModalCaseId);
+    if (idx === -1) {
+      console.error('Case not found in storage!');
+      UI.showToast('Error: Case not found', 'error');
+      return;
+    }
 
-  const caseObj = cases[idx];
-  if (!Array.isArray(caseObj.todos)) {
-    caseObj.todos = [];
+    const caseObj = cases[idx];
+    if (!Array.isArray(caseObj.todos)) {
+      caseObj.todos = [];
+    }
+    caseObj.todos.push({
+      description: Utils.sanitizeString(description),
+      deadline,
+      completed: false
+    });
+
+    Storage.saveCases(cases);
+    renderModalTodos(caseObj.todos);
+    renderCases();
+    UI.showToast('To-do added', 'success');
+
+    descEl.value = '';
+    deadlineEl.value = '';
+  } catch (error) {
+    console.error('Error adding todo:', error);
+    UI.showToast('Error adding to-do: ' + error.message, 'error');
   }
-  caseObj.todos.push({
-    description: Utils.sanitizeString(description),
-    deadline,
-    completed: false
-  });
-
-  Storage.saveCases(cases);
-  renderModalTodos(caseObj.todos);
-  renderCases();
-  UI.showToast('To-do added', 'success');
-
-  descEl.value = '';
-  deadlineEl.value = '';
 }
 
 function deleteTodoFromCurrentCase(todoIndex) {
@@ -1978,8 +2001,9 @@ function collectModalExWindows() {
 
 function toggleModalAdvanced() {
   const box = document.getElementById('advancedModalContainer');
-  box.style.display = (box.style.display === 'none' || box.style.display === '') ? 'flex' : 'none';
-  if (box.style.display !== 'none') {
+  const isHidden = box.style.display === 'none' || box.style.display === '';
+  box.style.display = isHidden ? 'flex' : 'none';
+  if (isHidden) {
     updateModal3030Date();
   }
 }
