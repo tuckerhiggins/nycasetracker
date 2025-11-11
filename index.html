@@ -305,7 +305,7 @@
           </div>
         </div>
 
-        <button class="modal-close" onclick="closeCaseModal()" style="position:absolute;top:1rem;right:1rem;">×</button>
+        <button class="modal-close" id="closeCaseModalBtn" style="position:absolute;top:1rem;right:1rem;">×</button>
 
         <div class="form-row">
           <div class="field">
@@ -346,7 +346,7 @@
               <input id="modalTodoDeadline" type="date">
             </div>
           </div>
-          <button type="button" class="primary small-link" onclick="addTodoToCurrentCase()">
+          <button type="button" class="primary small-link" id="addTodoBtn">
             Add to-do
           </button>
         </div>
@@ -385,8 +385,8 @@
             Primary/Top Charge (determines 30.30 cap)
           </label>
           <div style="margin-top:0.5rem;">
-            <button class="primary small-link" onclick="saveNewCharge()">Add</button>
-            <button class="secondary small-link" onclick="cancelNewCharge()">Cancel</button>
+            <button class="primary small-link" id="saveChargeBtn">Add</button>
+            <button class="secondary small-link" id="cancelChargeBtn">Cancel</button>
           </div>
         </div>
 
@@ -534,13 +534,13 @@
               <textarea id="modalNoteText" rows="2" placeholder="e.g., People served discovery; defense asked for adjournment..."></textarea>
             </div>
           </div>
-          <button class="secondary" onclick="addNoteToCurrentCase()">Add Note</button>
+          <button class="secondary" id="addNoteBtn">Add Note</button>
         </div>
 
         <div style="margin-top: 1rem; display:flex; justify-content: space-between; gap:0.5rem; flex-wrap:wrap;">
-          <button class="secondary" type="button" onclick="exportCurrentCase()">Export this case</button>
-          <button class="primary" type="button" onclick="saveModalChanges()">Save changes</button>
-          <button class="danger" type="button" onclick="deleteCurrentCase()">Delete case</button>
+          <button class="secondary" type="button" id="exportCaseBtn">Export this case</button>
+          <button class="primary" type="button" id="saveChangesBtn">Save changes</button>
+          <button class="danger" type="button" id="deleteCaseBtn">Delete case</button>
         </div>
       </div>
     </div>
@@ -551,7 +551,7 @@
     <div class="modal">
       <div class="modal-header">
         <h2>Advanced excludable time</h2>
-        <button class="modal-close" onclick="closeAdvExModal()">×</button>
+        <button class="modal-close" id="closeAdvExModalBtn">×</button>
       </div>
       <div class="modal-body">
         <div class="modal-section-title">Excludable calculator (new case)</div>
@@ -578,7 +578,7 @@
         </div>
 
         <div style="margin-top: 1rem; display:flex; justify-content: flex-end; gap:0.5rem;">
-          <button class="primary" type="button" onclick="saveAdvExAndClose()">Done</button>
+          <button class="primary" type="button" id="saveAdvExBtn">Done</button>
         </div>
       </div>
     </div>

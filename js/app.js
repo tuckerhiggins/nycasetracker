@@ -155,6 +155,18 @@ function setupEventListeners() {
     addChargeBtn.addEventListener('click', toggleChargeInputRow);
   }
 
+  // Modal button event listeners (instead of onclick)
+  document.getElementById('closeCaseModalBtn').addEventListener('click', closeCaseModal);
+  document.getElementById('addTodoBtn').addEventListener('click', addTodoToCurrentCase);
+  document.getElementById('saveChargeBtn').addEventListener('click', saveNewCharge);
+  document.getElementById('cancelChargeBtn').addEventListener('click', cancelNewCharge);
+  document.getElementById('addNoteBtn').addEventListener('click', addNoteToCurrentCase);
+  document.getElementById('exportCaseBtn').addEventListener('click', exportCurrentCase);
+  document.getElementById('saveChangesBtn').addEventListener('click', saveModalChanges);
+  document.getElementById('deleteCaseBtn').addEventListener('click', deleteCurrentCase);
+  document.getElementById('closeAdvExModalBtn').addEventListener('click', closeAdvExModal);
+  document.getElementById('saveAdvExBtn').addEventListener('click', saveAdvExAndClose);
+
   // Quick calculator
   document.getElementById('quickExAddBtn').addEventListener('click', () => {
     addQuickExRow();
@@ -356,9 +368,17 @@ function createMobileCard(c, excludeMode) {
       ` : ''}
     </div>
     <div class="case-card-actions">
-      <button class="secondary" onclick="openCaseModal('${c.id}')">View Details</button>
+      <button class="secondary case-view-btn">View Details</button>
     </div>
   `;
+  
+  // Add event listener for the View Details button
+  const viewBtn = card.querySelector('.case-view-btn');
+  if (viewBtn) {
+    viewBtn.addEventListener('click', () => {
+      openCaseModal(c.id);
+    });
+  }
 
   return card;
 }
@@ -1399,10 +1419,7 @@ function toggleTodoCreationRow() {
 }
 
 function addTodoToCurrentCase() {
-  console.log('addTodoToCurrentCase called, currentModalCaseId:', currentModalCaseId);
-  
   if (!currentModalCaseId) {
-    console.error('No currentModalCaseId set!');
     UI.showToast('Error: No case selected', 'error');
     return;
   }
@@ -1411,7 +1428,6 @@ function addTodoToCurrentCase() {
   const deadlineEl = document.getElementById('modalTodoDeadline');
   
   if (!descEl || !deadlineEl) {
-    console.error('Todo input elements not found!');
     UI.showToast('Error: Form elements not found', 'error');
     return;
   }
@@ -1428,7 +1444,6 @@ function addTodoToCurrentCase() {
     const cases = Storage.loadCases();
     const idx = cases.findIndex(c => c.id === currentModalCaseId);
     if (idx === -1) {
-      console.error('Case not found in storage!');
       UI.showToast('Error: Case not found', 'error');
       return;
     }
